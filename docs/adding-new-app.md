@@ -108,7 +108,7 @@ on:
 
 jobs:
   build-frontend:
-    uses: yourorg/shared-workflows/.github/workflows/docker-build-push.yml@main
+    uses: adarshraj/shared-workflows/.github/workflows/docker-build-push.yml@main
     with:
       image-name: <app-name>-frontend
       dockerfile: frontend/Dockerfile
@@ -118,7 +118,7 @@ jobs:
       INFISICAL_CLIENT_SECRET: ${{ secrets.INFISICAL_CLIENT_SECRET }}
 
   build-backend:
-    uses: yourorg/shared-workflows/.github/workflows/quarkus-build.yml@main
+    uses: adarshraj/shared-workflows/.github/workflows/quarkus-build.yml@main
     with:
       image-name: <app-name>-backend
     secrets:
@@ -127,7 +127,7 @@ jobs:
 
   deploy:
     needs: [build-frontend, build-backend]
-    uses: yourorg/shared-workflows/.github/workflows/deploy-portainer.yml@main
+    uses: adarshraj/shared-workflows/.github/workflows/deploy-portainer.yml@main
     with:
       stack-name: <app-name>
     secrets:
