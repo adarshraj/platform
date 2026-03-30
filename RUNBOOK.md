@@ -72,6 +72,65 @@ Or via Portainer UI: Stacks → select stack → Pull and redeploy.
 
 ---
 
+## Restore
+
+### Restore a PostgreSQL database
+
+```bash
+# List available backups
+ls /var/backups/platform/
+
+# Restore a specific DB dump (example: infisical-db container, infisical database)
+gunzip -c /var/backups/platform/<DATE>/infisical-db-infisical.sql.gz \
+  | docker exec -i infisical-db psql -U infisical -d infisical
+```
+
+### Restore the Infisical volume
+
+```bash
+# Stop Infisical stack first
+cd ~/platform/infra/secrets && docker compose down
+
+# Restore the volume from the backup tar
+docker run --rm \
+  -v infisical_db_data:/data \
+  -v /var/backups/platform/<DATE>:/backup:ro \
+  alpine sh -c "rm -rf /data/* && tar xzf /backup/infisical-db-data.tar.gz -C / "
+
+# Bring Infisical back up
+docker compose up -d
+```
+
+### Restore the Loki volume
+
+```bash
+# Stop Loki
+cd ~/platform/infra/logging && docker compose stop loki
+
+# Restore the volume
+docker run --rm \
+  -v loki_data:/data \
+  -v /var/backups/platform/<DATE>:/backup:ro \
+  alpine sh -c "rm -rf /data/* && tar xzf /backup/loki-data.tar.gz -C /"
+
+# Start Loki
+docker compose start loki
+```
+
+### Quarterly restore drill
+
+Run this checklist once a quarter to verify backups are actually usable:
+
+- [ ] Provision a scratch VM with Docker installed
+- [ ] Copy the latest backup directory to the scratch VM
+- [ ] Restore `infisical-db` using the PostgreSQL restore steps above
+- [ ] Bring up `infra/secrets` and verify Infisical UI loads and secrets are present
+- [ ] Restore one app DB and verify the app starts and can read its data
+- [ ] Confirm `loki-data.tar.gz` is non-empty and extractable (`tar tzf loki-data.tar.gz | head`)
+- [ ] Destroy the scratch VM
+
+---
+
 ## Start / Stop Individual Infrastructure
 
 ```bash

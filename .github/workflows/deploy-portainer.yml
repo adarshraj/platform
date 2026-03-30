@@ -19,9 +19,14 @@ jobs:
       - name: Trigger Portainer stack update
         run: |
           echo "Deploying stack: ${{ inputs.stack-name }}"
-          curl -X POST "${{ secrets.PORTAINER_WEBHOOK_URL }}" \
-            --fail \
+          HTTP_STATUS=$(curl -X POST "${{ secrets.PORTAINER_WEBHOOK_URL }}" \
             --silent \
-            --show-error \
-            --max-time 30
+            --output /dev/null \
+            --write-out "%{http_code}" \
+            --max-time 30)
+          echo "HTTP status: $HTTP_STATUS"
+          if [[ "$HTTP_STATUS" -lt 200 || "$HTTP_STATUS" -ge 300 ]]; then
+            echo "Deploy failed with HTTP $HTTP_STATUS"
+            exit 1
+          fi
           echo "Deploy triggered successfully."

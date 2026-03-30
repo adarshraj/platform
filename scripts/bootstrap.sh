@@ -45,14 +45,14 @@ echo "Starting logging (Loki + Promtail)..."
 cd "$PLATFORM_DIR/infra/logging" && docker compose up -d
 echo "  ✓ Loki + Promtail"
 
-echo "Starting monitoring (Prometheus + Grafana + cAdvisor)..."
+echo "Starting monitoring (Prometheus + Grafana + cAdvisor + node-exporter)..."
 if [ ! -f "$PLATFORM_DIR/infra/monitoring/.env" ]; then
   echo "  ERROR: infra/monitoring/.env not found."
   echo "  Copy infra/monitoring/.env.example to infra/monitoring/.env and fill in the values."
   exit 1
 fi
 cd "$PLATFORM_DIR/infra/monitoring" && docker compose --env-file .env up -d
-echo "  ✓ Prometheus + Grafana + cAdvisor"
+echo "  ✓ Prometheus + Grafana + cAdvisor + node-exporter"
 
 echo "Starting Verdaccio (npm registry)..."
 cd "$PLATFORM_DIR/infra/registry" && docker compose up -d

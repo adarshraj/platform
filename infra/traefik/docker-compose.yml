@@ -19,7 +19,9 @@ services:
       - "traefik.http.routers.dashboard.entrypoints=websecure"
       - "traefik.http.routers.dashboard.tls=true"
       - "traefik.http.routers.dashboard.service=api@internal"
-      # Restrict dashboard to internal IPs only
+      # Restrict dashboard to internal IPs only.
+      # Covers RFC1918 + loopback. If accessing via Tailscale or CGNAT carrier
+      # networks, also add 100.64.0.0/10 to sourcerange.
       - "traefik.http.routers.dashboard.middlewares=internal-only"
       - "traefik.http.middlewares.internal-only.ipallowlist.sourcerange=127.0.0.1/32,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
       # Global security headers middleware (attach to any router with: middlewares=secure-headers)
