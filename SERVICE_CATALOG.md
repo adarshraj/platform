@@ -10,55 +10,55 @@ All services are accessible via `<name>.homelab.local` (internal) or `<name>.you
 
 ## Platform Infrastructure
 
-| Service | Subdomain | Internal Port | Stack Dir | Status |
-|---|---|---|---|---|
-| Traefik | traefik.homelab.local | 80, 443 | infra/traefik | active |
-| Portainer | portainer.homelab.local | 9000 | infra/portainer | active |
-| Grafana | monitoring.homelab.local | 3000 | infra/monitoring | active |
-| Prometheus | — (internal) | 9090 | infra/monitoring | active |
-| Loki | — (internal) | 3100 | infra/logging | active |
-| Infisical | secrets.homelab.local | 8080 | infra/secrets | active |
-| Verdaccio | npm.homelab.local | 4873 | infra/registry | active |
+| Service | Subdomain | Internal Port | Stack Dir |
+|---|---|---|---|
+| Traefik | traefik.homelab.local | 80, 443 | infra/traefik |
+| Portainer | portainer.homelab.local | 9000 | infra/portainer |
+| Grafana | monitoring.homelab.local | 3000 | infra/monitoring |
+| Prometheus | — (internal) | 9090 | infra/monitoring |
+| Loki | — (internal) | 3100 | infra/logging |
+| Infisical | secrets.homelab.local | 8080 | infra/secrets |
+| Verdaccio | npm.homelab.local | 4873 | infra/registry |
 
 ---
 
 ## Shared Services (CursorProjects)
 
-| Service | Subdomain | Internal Port | Repo | Depends On | Status |
-|---|---|---|---|---|---|
-| auth-service | auth.homelab.local | 8703 | CursorProjects/auth-service | postgres | pending |
-| ai-wrap | aiwrap.homelab.local | 8704 | CursorProjects/ai-wrap | postgres | pending |
-| DocBucket | docbucket.homelab.local | 8705 | CursorProjects/DocBucket | postgres | pending |
+| Service | Subdomain | Internal Port | Repo | Depends On |
+|---|---|---|---|---|
+| auth-service | auth.homelab.local | 8703 | CursorProjects/auth-service | postgres |
+| ai-wrap | aiwrap.homelab.local | 8704 | CursorProjects/ai-wrap | postgres |
+| DocBucket | docbucket.homelab.local | 8705 | CursorProjects/DocBucket | postgres |
 
 ---
 
 ## ConvertedNut Applications
 
-| Service | Subdomain | Frontend Port | Backend Port | Repo | Depends On | Status |
-|---|---|---|---|---|---|---|
-| bookshelf-haven | bookshelf.homelab.local | 3000 | 8080 | ConvertedNutProjects/bookshelf-haven | auth-service, docbucket, ai-wrap | pending |
-| vahan-track | vahan.homelab.local | 3000 | 8080 | ConvertedNutProjects/vahan-track | auth-service | pending |
-| family-roots | family-roots.homelab.local | 3000 | 8080 | ConvertedNutProjects/family-roots | auth-service | pending |
-| family-vitals | family-vitals.homelab.local | 3000 | 8080 | ConvertedNutProjects/family-vitals | auth-service | pending |
-| family-vitals-vault | vitals-vault.homelab.local | 3000 | 8080 | ConvertedNutProjects/family-vitals-vault | auth-service | pending |
-| F1Pulse | f1pulse.homelab.local | 3000 | — | ConvertedNutProjects/F1Pulse | — | pending |
-| finance-tracker | finance.homelab.local | 3000 | — | ConvertedNutProjects/finance-tracker | auth-service | pending |
-| family-health-tracker | family-health.homelab.local | 3000 | — | ConvertedNutProjects/family-health-tracker | — | pending |
-| vuln-monitor | vuln.homelab.local | 3000 | — | ConvertedNutProjects/vuln-monitor | — | pending |
+| Service | Subdomain | Frontend Port | Backend Port | Repo | Depends On |
+|---|---|---|---|---|
+| bookshelf-haven | bookshelf.homelab.local | 3000 | 8080 | ConvertedNutProjects/bookshelf-haven | auth-service, docbucket, ai-wrap |
+| vahan-track | vahan.homelab.local | 3000 | 8080 | ConvertedNutProjects/vahan-track | auth-service |
+| family-roots | family-roots.homelab.local | 3000 | 8080 | ConvertedNutProjects/family-roots | auth-service |
+| family-vitals | family-vitals.homelab.local | 3000 | 8080 | ConvertedNutProjects/family-vitals | auth-service |
+| family-vitals-vault | vitals-vault.homelab.local | 3000 | 8080 | ConvertedNutProjects/family-vitals-vault | auth-service |
+| F1Pulse | f1pulse.homelab.local | 3000 | — | ConvertedNutProjects/F1Pulse | — |
+| finance-tracker | finance.homelab.local | 3000 | — | ConvertedNutProjects/finance-tracker | auth-service |
+| family-health-tracker | family-health.homelab.local | 3000 | — | ConvertedNutProjects/family-health-tracker | — |
+| vuln-monitor | vuln.homelab.local | 3000 | — | ConvertedNutProjects/vuln-monitor | — |
 
 ---
 
 ## Cursor Utilities
 
-| Service | Subdomain | Internal Port | Repo | Status |
-|---|---|---|---|---|
-| ShortCutCommands | shortcuts.homelab.local | 3000 | CursorProjects/ShortCutCommands | pending |
-| Upstarter | upstarter.homelab.local | 3000 | CursorProjects/Upstarter | pending |
-| LaunchTracker | launchtracker.homelab.local | 3000 | CursorProjects/LaunchTracker | pending |
-| Launchpad | launchpad.homelab.local | 3000 | CursorProjects/Launchpad | pending |
-| Wishlister | wishlister.homelab.local | 3000 | CursorProjects/Wishlister | pending |
-| HeicConvert | heicconvert.homelab.local | 3000 | CursorProjects/HeicConvert | pending |
-| Difference | difference.homelab.local | 3000 | CursorProjects/Difference | pending |
+| Service | Subdomain | Internal Port | Repo |
+|---|---|---|---|
+| ShortCutCommands | shortcuts.homelab.local | 3000 | CursorProjects/ShortCutCommands |
+| Upstarter | upstarter.homelab.local | 3000 | CursorProjects/Upstarter |
+| LaunchTracker | launchtracker.homelab.local | 3000 | CursorProjects/LaunchTracker |
+| Launchpad | launchpad.homelab.local | 3000 | CursorProjects/Launchpad |
+| Wishlister | wishlister.homelab.local | 3000 | CursorProjects/Wishlister |
+| HeicConvert | heicconvert.homelab.local | 3000 | CursorProjects/HeicConvert |
+| Difference | difference.homelab.local | 3000 | CursorProjects/Difference |
 
 ---
 

@@ -622,7 +622,6 @@ git clone https://github.com/adarshraj/my-app ~/apps/my-app
 - [ ] App starts without missing environment variable errors
 
 **Finalise**
-- [ ] Change `Status` in `SERVICE_CATALOG.md` from `pending` → `active`
 
 ---
 
