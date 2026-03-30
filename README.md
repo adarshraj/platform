@@ -162,7 +162,7 @@ providers:
 | `localhost:3002` | `https://vahan.homelab.local` |
 | `localhost:8081` | handled by same subdomain under `/api` |
 | 38+ open ports on host | 2 ports total (80 + 443, both Traefik) |
-| No central record | `SERVICE_CATALOG.md` is the single source of truth |
+| No central record | `services.yaml` is the single source of truth |
 
 ---
 
@@ -746,7 +746,7 @@ Verdaccio stores the package. Any npm install for `@adarshraj/*` packages goes t
 ```
 platform/
 ├── README.md                  ← you are here
-├── SERVICE_CATALOG.md         ← authoritative list of all services, subdomains, ports
+├── services.yaml         ← authoritative list of all services, subdomains, ports
 ├── RUNBOOK.md                 ← common day-to-day operational tasks
 │
 ├── .github/
@@ -1130,7 +1130,7 @@ One Machine Identity can be reused across all apps — you just grant it access 
 See **[docs/adding-new-app.md](docs/adding-new-app.md)** for the complete step-by-step checklist with code snippets.
 
 Summary:
-1. Register the app in `SERVICE_CATALOG.md` — pick a subdomain and internal ports
+1. Register the app in `services.yaml` — pick a subdomain and internal ports
 2. Add Traefik labels + `platform_proxy` network to the app's `docker-compose.yml`, remove `ports:`
 3. Create a project in Infisical, migrate secrets from `.env` files
 4. Replace the app's GitHub Actions workflow with the reusable workflow pattern above

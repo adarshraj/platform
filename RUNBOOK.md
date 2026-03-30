@@ -113,7 +113,7 @@ networks:
   - platform_proxy
 ```
 
-Then register the service in `SERVICE_CATALOG.md`.
+Then register the service in `services.yaml`.
 
 ---
 

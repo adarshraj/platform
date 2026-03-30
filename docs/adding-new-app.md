@@ -8,7 +8,7 @@ Follow the steps in order — each step depends on the previous one.
 ## Table of Contents
 
 1. [Identify Your App Type](#1-identify-your-app-type)
-2. [Register in SERVICE_CATALOG.md](#2-register-in-service_catalogmd)
+2. [Register in services.yaml](#2-register-in-servicesyaml)
 3. [Configure docker-compose.yml for Traefik](#3-configure-docker-composeyml-for-traefik)
 4. [Configure Logging](#4-configure-logging)
 5. [Configure Metrics (Optional)](#5-configure-metrics-optional)
@@ -33,27 +33,55 @@ Your app falls into one of four types. Traefik config and GitHub Actions workflo
 
 ---
 
-## 2. Register in SERVICE_CATALOG.md
+## 2. Register in services.yaml
 
-Before touching any config, reserve a subdomain and ports in `SERVICE_CATALOG.md` to prevent conflicts.
+Before touching any config, reserve a subdomain and ports in `services.yaml` to prevent conflicts.
+This file is structured YAML — not a markdown table — so scripts can read it programmatically.
 
-Add a row to the appropriate section:
-```markdown
-| my-app | my-app.homelab.local | 3000 | 8080 | adarshraj/my-app | auth-service | pending |
+Add an entry to the appropriate section (`apps:`, `utilities:`, or `shared_services:`):
+
+```yaml
+# Full-stack app
+- name: my-app
+  subdomain: my-app.homelab.local
+  ports:
+    frontend: 3000
+    backend: 8080
+  repo: adarshraj/my-app
+  depends_on: [auth-service]
+  type: full-stack
+
+# Frontend-only
+- name: my-app
+  subdomain: my-app.homelab.local
+  ports:
+    frontend: 3000
+  repo: adarshraj/my-app
+  depends_on: []
+  type: frontend-only
+
+# Monolithic (SvelteKit / single container)
+- name: my-app
+  subdomain: my-app.homelab.local
+  ports:
+    app: 3000
+  repo: adarshraj/my-app
+  depends_on: [auth-service]
+  type: monolithic
+
+# Backend-only / shared service
+- name: my-service
+  subdomain: my-service.homelab.local
+  ports:
+    api: 8080
+  repo: adarshraj/my-service
+  depends_on: []
+  type: backend-only
 ```
 
-**Subdomain rules**: kebab-case, short, unique across the catalog.
+**Name rules**: kebab-case, unique across the entire file. This name is used as the Docker Compose stack name, Traefik router name, and Infisical project name — they must all match.
 
-**Port conventions**:
-| Container type | Port |
-|---|---|
-| SvelteKit / React / Node.js frontend | 3000 |
-| Quarkus backend | 8080 |
-| PostgreSQL | 5432 (internal only, never exposed) |
-
-**Depends On column**: list shared services this app calls at runtime (e.g. `auth-service`, `ai-wrap`). Documentation only — reminds you to start those services first.
-
-**Status**: set to `pending`. Change to `active` after step 9 passes.
+**`depends_on`**: list service names this app calls at runtime. Informational — reminds you which shared services must be running first. Port conventions are in the comments at the bottom of `services.yaml`.
 
 ---
 

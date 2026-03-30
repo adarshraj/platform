@@ -1,0 +1,239 @@
+# Service Registry
+# Authoritative record of all services in this platform.
+# Add an entry here before deploying any new app or shared service.
+# This file is machine-readable — scripts/deploy-app.sh and scripts/bootstrap.sh read it.
+#
+# Fields:
+#   name        — unique identifier, used as Docker Compose stack name and Traefik router name
+#   subdomain   — full homelab subdomain (swap homelab.local for your domain on VPS)
+#   ports       — internal container ports (never host ports — Traefik handles routing)
+#   repo        — GitHub repo (owner/repo)
+#   depends_on  — list of service names that must be running before this one
+#   type        — platform | shared-service | full-stack | frontend-only | backend-only | monolithic
+
+# ─── Platform Infrastructure ────────────────────────────────────────────────
+
+platform:
+  - name: traefik
+    subdomain: traefik.homelab.local
+    ports: [80, 443]
+    repo: adarshraj/platform
+    type: platform
+    stack_dir: infra/traefik
+
+  - name: portainer
+    subdomain: portainer.homelab.local
+    ports: [9000]
+    repo: adarshraj/platform
+    type: platform
+    stack_dir: infra/portainer
+
+  - name: grafana
+    subdomain: monitoring.homelab.local
+    ports: [3000]
+    repo: adarshraj/platform
+    type: platform
+    stack_dir: infra/monitoring
+
+  - name: prometheus
+    subdomain: ~              # internal only, no external route
+    ports: [9090]
+    repo: adarshraj/platform
+    type: platform
+    stack_dir: infra/monitoring
+
+  - name: loki
+    subdomain: ~              # internal only
+    ports: [3100]
+    repo: adarshraj/platform
+    type: platform
+    stack_dir: infra/logging
+
+  - name: infisical
+    subdomain: secrets.homelab.local
+    ports: [8080]
+    repo: adarshraj/platform
+    type: platform
+    stack_dir: infra/secrets
+
+  - name: verdaccio
+    subdomain: npm.homelab.local
+    ports: [4873]
+    repo: adarshraj/platform
+    type: platform
+    stack_dir: infra/registry
+
+# ─── Shared Services ────────────────────────────────────────────────────────
+
+shared_services:
+  - name: auth-service
+    subdomain: auth.homelab.local
+    ports:
+      api: 8703
+    repo: adarshraj/auth-service
+    depends_on: []
+    type: backend-only
+
+  - name: ai-wrap
+    subdomain: aiwrap.homelab.local
+    ports:
+      api: 8704
+    repo: adarshraj/ai-wrap
+    depends_on: []
+    type: backend-only
+
+  - name: docbucket
+    subdomain: docbucket.homelab.local
+    ports:
+      api: 8705
+    repo: adarshraj/DocBucket
+    depends_on: []
+    type: backend-only
+
+# ─── ConvertedNut Applications ───────────────────────────────────────────────
+
+apps:
+  - name: bookshelf-haven
+    subdomain: bookshelf.homelab.local
+    ports:
+      frontend: 3000
+      backend: 8080
+    repo: adarshraj/bookshelf-haven
+    depends_on: [auth-service, docbucket, ai-wrap]
+    type: full-stack
+
+  - name: vahan-track
+    subdomain: vahan.homelab.local
+    ports:
+      frontend: 3000
+      backend: 8080
+    repo: adarshraj/vahan-track
+    depends_on: [auth-service]
+    type: full-stack
+
+  - name: family-roots
+    subdomain: family-roots.homelab.local
+    ports:
+      frontend: 3000
+      backend: 8080
+    repo: adarshraj/family-roots
+    depends_on: [auth-service]
+    type: full-stack
+
+  - name: family-vitals
+    subdomain: family-vitals.homelab.local
+    ports:
+      frontend: 3000
+      backend: 8080
+    repo: adarshraj/family-vitals
+    depends_on: [auth-service]
+    type: full-stack
+
+  - name: family-vitals-vault
+    subdomain: vitals-vault.homelab.local
+    ports:
+      frontend: 3000
+      backend: 8080
+    repo: adarshraj/family-vitals-vault
+    depends_on: [auth-service]
+    type: full-stack
+
+  - name: f1pulse
+    subdomain: f1pulse.homelab.local
+    ports:
+      frontend: 3000
+    repo: adarshraj/F1Pulse
+    depends_on: []
+    type: frontend-only
+
+  - name: finance-tracker
+    subdomain: finance.homelab.local
+    ports:
+      app: 3000
+    repo: adarshraj/finance-tracker
+    depends_on: [auth-service]
+    type: monolithic
+
+  - name: family-health-tracker
+    subdomain: family-health.homelab.local
+    ports:
+      app: 3000
+    repo: adarshraj/family-health-tracker
+    depends_on: []
+    type: monolithic
+
+  - name: vuln-monitor
+    subdomain: vuln.homelab.local
+    ports:
+      app: 3000
+    repo: adarshraj/vuln-monitor
+    depends_on: []
+    type: monolithic
+
+# ─── Cursor Utilities ────────────────────────────────────────────────────────
+
+utilities:
+  - name: shortcut-commands
+    subdomain: shortcuts.homelab.local
+    ports:
+      app: 3000
+    repo: adarshraj/ShortCutCommands
+    depends_on: []
+    type: monolithic
+
+  - name: upstarter
+    subdomain: upstarter.homelab.local
+    ports:
+      app: 3000
+    repo: adarshraj/Upstarter
+    depends_on: []
+    type: monolithic
+
+  - name: launchtracker
+    subdomain: launchtracker.homelab.local
+    ports:
+      app: 3000
+    repo: adarshraj/LaunchTracker
+    depends_on: []
+    type: monolithic
+
+  - name: launchpad
+    subdomain: launchpad.homelab.local
+    ports:
+      app: 3000
+    repo: adarshraj/Launchpad
+    depends_on: []
+    type: monolithic
+
+  - name: wishlister
+    subdomain: wishlister.homelab.local
+    ports:
+      app: 3000
+    repo: adarshraj/Wishlister
+    depends_on: []
+    type: monolithic
+
+  - name: heicconvert
+    subdomain: heicconvert.homelab.local
+    ports:
+      app: 3000
+    repo: adarshraj/HeicConvert
+    depends_on: []
+    type: monolithic
+
+  - name: difference
+    subdomain: difference.homelab.local
+    ports:
+      app: 3000
+    repo: adarshraj/Difference
+    depends_on: []
+    type: monolithic
+
+# ─── Port Conventions ────────────────────────────────────────────────────────
+# These are internal container ports only. No app should use `ports:` in docker-compose.yml.
+# All external routing goes through Traefik on 80/443.
+#
+# 3000  — SvelteKit / React / Node.js frontends
+# 8080  — Quarkus backends
+# 5432  — PostgreSQL (internal Docker network only, never routed)
+# 6379  — Redis (internal Docker network only, never routed)
