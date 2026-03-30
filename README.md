@@ -100,6 +100,11 @@ platform/
 ├── SERVICE_CATALOG.md         ← all services: subdomains, ports, status
 ├── RUNBOOK.md                 ← common operational tasks (deploy, logs, backup)
 │
+├── .github/workflows/         ← reusable CI/CD workflows (used by all app repos)
+│   ├── docker-build-push.yml  ← build + push any Docker image to ghcr.io
+│   ├── quarkus-build.yml      ← Maven test + build + push for Kotlin backends
+│   └── deploy-portainer.yml   ← trigger Portainer webhook to redeploy a stack
+│
 ├── infra/
 │   ├── traefik/               ← reverse proxy + TLS
 │   ├── portainer/             ← Docker stack management UI
@@ -135,8 +140,52 @@ Short version:
 1. Add a row to `SERVICE_CATALOG.md`
 2. Add Traefik labels + `platform_proxy` network to the app's `docker-compose.yml`
 3. Migrate secrets to Infisical
-4. Update the app's GitHub Actions to use `shared-workflows`
+4. Update the app's GitHub Actions to use the reusable workflows in `.github/workflows/`
 5. Register the stack in Portainer
+
+## CI/CD — Reusable Workflows
+
+All app repos call the workflows in `.github/workflows/` instead of duplicating CI logic.
+
+**Frontend app (SvelteKit / React / Node.js):**
+```yaml
+jobs:
+  build:
+    uses: adarshraj/platform/.github/workflows/docker-build-push.yml@main
+    with:
+      image-name: my-app-frontend
+      context: frontend
+    secrets:
+      INFISICAL_CLIENT_ID: ${{ secrets.INFISICAL_CLIENT_ID }}
+      INFISICAL_CLIENT_SECRET: ${{ secrets.INFISICAL_CLIENT_SECRET }}
+```
+
+**Kotlin/Quarkus backend:**
+```yaml
+jobs:
+  build:
+    uses: adarshraj/platform/.github/workflows/quarkus-build.yml@main
+    with:
+      image-name: my-app-backend
+      working-directory: backend
+    secrets:
+      INFISICAL_CLIENT_ID: ${{ secrets.INFISICAL_CLIENT_ID }}
+      INFISICAL_CLIENT_SECRET: ${{ secrets.INFISICAL_CLIENT_SECRET }}
+```
+
+**Deploy after build:**
+```yaml
+jobs:
+  deploy:
+    needs: build
+    uses: adarshraj/platform/.github/workflows/deploy-portainer.yml@main
+    with:
+      stack-name: my-app
+    secrets:
+      PORTAINER_WEBHOOK_URL: ${{ secrets.PORTAINER_WEBHOOK_URL_MY_APP }}
+```
+
+**Full example** (frontend + backend + deploy in one file): see [docs/adding-new-app.md](docs/adding-new-app.md#4-update-github-actions).
 
 ---
 
@@ -150,7 +199,6 @@ The setup is identical on a VPS. The only changes:
 
 ---
 
-## Related Repos
+## Related
 
-- **[shared-workflows](../shared-workflows)** — reusable GitHub Actions for building and deploying apps
 - **SERVICE_CATALOG.md** — full list of all apps and their subdomains/ports

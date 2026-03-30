@@ -1,0 +1,27 @@
+name: Deploy Stack via Portainer Webhook
+
+on:
+  workflow_call:
+    inputs:
+      stack-name:
+        description: "Portainer stack name to redeploy"
+        required: true
+        type: string
+    secrets:
+      PORTAINER_WEBHOOK_URL:
+        description: "Portainer stack webhook URL (from Portainer UI → Stacks → Webhooks)"
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Portainer stack update
+        run: |
+          echo "Deploying stack: ${{ inputs.stack-name }}"
+          curl -X POST "${{ secrets.PORTAINER_WEBHOOK_URL }}" \
+            --fail \
+            --silent \
+            --show-error \
+            --max-time 30
+          echo "Deploy triggered successfully."
