@@ -80,6 +80,7 @@ Your Browser or Device
    │  Grafana     — search logs and view metrics in one UI          │
    │  Prometheus  — collects CPU/memory/health metrics              │
    │  cAdvisor    — exposes per-container metrics to Prometheus     │
+   │  node-exporter — exposes host-level metrics (disk, CPU, memory) │
    │  Verdaccio   — private npm registry for shared TS libraries    │
    └────────────────────────────────────────────────────────────────┘
 ```
@@ -630,7 +631,8 @@ The last query can be turned into a Grafana dashboard panel showing error rate p
 
 **What they are**:
 - **cAdvisor**: Runs as a container with access to the host's Docker socket and filesystem. Exposes per-container metrics (CPU, memory, network, disk) at `/metrics`.
-- **Prometheus**: Scrapes `/metrics` endpoints on a schedule (every 15 seconds) and stores the time-series data.
+- **node-exporter**: Runs on the host PID namespace and exposes host-level metrics (filesystem usage, CPU, memory, network interfaces) at port `9100`. Required for the `DiskSpaceLow` alert.
+- **Prometheus**: Scrapes `/metrics` endpoints on a schedule (every 15 seconds) and stores the time-series data. The Docker socket is mounted so Prometheus can auto-discover containers that opt in via labels (see app metrics section below).
 - **Alertmanager**: Receives alerts from Prometheus when rules are violated and routes them to Slack/email/webhook.
 - **Grafana**: Visualization UI. Connects to both Prometheus (metrics) and Loki (logs) so you have one dashboard for everything.
 
@@ -638,7 +640,7 @@ The last query can be turned into a Grafana dashboard panel showing error rate p
 - CPU and memory usage per container, over time
 - Container restart counts (catch crash loops)
 - Network I/O per container
-- Disk usage on the host
+- Disk usage on the host (via node-exporter)
 - Alerts when: a container is down for 2+ minutes, memory exceeds 85%, a container restarts 3+ times in 10 minutes, disk space falls below 15%
 
 **Pre-built Grafana dashboards to import** (paste the ID in Grafana → Dashboards → Import):
@@ -776,8 +778,8 @@ platform/
 │   │   └── promtail-config.yml     ← Docker autodiscovery, label extraction
 │   │
 │   ├── monitoring/
-│   │   ├── docker-compose.yml      ← Prometheus + Grafana + cAdvisor + Alertmanager
-│   │   ├── prometheus.yml          ← scrape targets (cAdvisor, Traefik, app metrics)
+│   │   ├── docker-compose.yml      ← Prometheus + Grafana + cAdvisor + node-exporter + Alertmanager
+│   │   ├── prometheus.yml          ← scrape targets (cAdvisor, node-exporter, Traefik, app metrics)
 │   │   ├── alerts.yml              ← alerting rules (container down, high memory, etc.)
 │   │   ├── alertmanager.yml        ← notification channels (Slack, email, webhook)
 │   │   ├── .env.example            ← template: Grafana admin password
@@ -912,7 +914,7 @@ This single wildcard entry covers all subdomains automatically. Every device usi
 This script:
 1. Checks Docker is installed
 2. Creates the shared Docker networks (`platform_proxy`, `monitoring_internal`)
-3. Starts Traefik, Portainer, Infisical, Loki, Promtail, Prometheus, Grafana, cAdvisor, Verdaccio
+3. Starts Traefik, Portainer, Infisical, Loki, Promtail, Prometheus, Grafana, cAdvisor, node-exporter, Verdaccio
 4. Sets up a daily cron job for database backups at 2am
 
 ### Step 7 — Verify
@@ -1165,6 +1167,7 @@ Three layers of protection are available via Traefik middlewares:
 # Defined in infra/traefik/docker-compose.yml:
 # sourcerange=127.0.0.1/32,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
 ```
+> **Note**: If you access the server via Tailscale or a CGNAT carrier network, you may also need to add `100.64.0.0/10` to the `sourcerange`. Admin UIs will be silently blocked otherwise.
 
 **Rate limiting** — limits requests per second per IP. Apply to any public-facing app:
 ```yaml
@@ -1182,6 +1185,7 @@ Three layers of protection are available via Traefik middlewares:
 - No `.env` files on disk (they get migrated to Infisical)
 - Secrets are never stored in git
 - The deploy script fetches secrets into a temp file, passes it to docker compose, then immediately deletes it
+- If Infisical is unreachable, `deploy-app.sh` **aborts** rather than deploying with an empty env. Pass `--allow-empty-secrets` only when you have confirmed no secrets are needed
 - Infisical encrypts all secrets at rest using the `INFISICAL_ENCRYPTION_KEY` you generate
 
 ---
@@ -1226,6 +1230,10 @@ ls /var/backups/platform/
 gunzip -c /var/backups/platform/2024-01-15_020000/bookshelf-db-bookshelf.sql.gz \
   | docker exec -i bookshelf-db psql -U bookshelf bookshelf
 ```
+
+For full volume restore procedures (Infisical, Loki) and a quarterly restore drill checklist, see [RUNBOOK.md — Restore](RUNBOOK.md#restore).
+
+> **Backup integrity**: The backup script stops Loki briefly before archiving its data volume to avoid inconsistent snapshots. The script exits with a non-zero code if any backup step fails, so cron failure emails will fire.
 
 ---
 
