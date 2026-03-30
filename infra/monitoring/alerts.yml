@@ -1,0 +1,51 @@
+groups:
+  - name: container_health
+    rules:
+      - alert: ContainerDown
+        expr: absent(container_last_seen{name=~".+"})
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Container {{ $labels.name }} is down"
+          description: "Container {{ $labels.name }} has been unreachable for more than 2 minutes."
+
+      - alert: ContainerRestartLoop
+        expr: increase(container_restart_count[10m]) > 3
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container {{ $labels.name }} is restarting frequently"
+          description: "Container {{ $labels.name }} has restarted {{ $value }} times in the last 10 minutes."
+
+      - alert: HighMemoryUsage
+        expr: |
+          (container_memory_usage_bytes{name!=""} / container_spec_memory_limit_bytes{name!=""}) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container {{ $labels.name }} high memory usage"
+          description: "Container {{ $labels.name }} is using {{ $value | humanizePercentage }} of its memory limit."
+
+      - alert: HighCpuUsage
+        expr: |
+          rate(container_cpu_usage_seconds_total{name!=""}[5m]) > 0.9
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container {{ $labels.name }} high CPU usage"
+          description: "Container {{ $labels.name }} has been using >90% CPU for 10 minutes."
+
+  - name: disk
+    rules:
+      - alert: DiskSpaceLow
+        expr: |
+          (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.15
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk space low on host"
+          description: "Root filesystem has less than 15% free space remaining."

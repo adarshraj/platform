@@ -1,0 +1,47 @@
+# Traefik v3 static configuration
+
+api:
+  dashboard: true
+  insecure: false
+
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entrypoint:
+          to: websecure
+          scheme: https
+          permanent: true
+  websecure:
+    address: ":443"
+
+providers:
+  docker:
+    exposedByDefault: false   # containers must opt-in with traefik.enable=true
+    network: platform_proxy
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true               # hot-reload dynamic config changes
+
+# Uncomment for public domains with Let's Encrypt:
+# certificatesResolvers:
+#   letsencrypt:
+#     acme:
+#       email: your@email.com
+#       storage: /letsencrypt/acme.json
+#       tlsChallenge: {}
+
+# For homelab.local: use a self-signed wildcard cert via mkcert or step-ca.
+# Place cert + key in infra/traefik/dynamic/tls.yml (see docs/local-dev.md).
+
+log:
+  level: INFO
+
+accessLog: {}
+
+metrics:
+  prometheus:
+    entryPoint: websecure
+    addEntryPointsLabels: true
+    addServicesLabels: true

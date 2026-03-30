@@ -1,0 +1,25 @@
+services:
+  verdaccio:
+    image: verdaccio/verdaccio:latest
+    container_name: verdaccio
+    restart: unless-stopped
+    volumes:
+      - ./verdaccio-config.yml:/verdaccio/conf/config.yaml:ro
+      - verdaccio_storage:/verdaccio/storage
+      - verdaccio_plugins:/verdaccio/plugins
+    networks:
+      - platform_proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.verdaccio.rule=Host(`npm.homelab.local`)"
+      - "traefik.http.routers.verdaccio.entrypoints=websecure"
+      - "traefik.http.routers.verdaccio.tls=true"
+      - "traefik.http.services.verdaccio.loadbalancer.server.port=4873"
+
+volumes:
+  verdaccio_storage:
+  verdaccio_plugins:
+
+networks:
+  platform_proxy:
+    external: true

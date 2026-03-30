@@ -1,0 +1,15 @@
+# Dynamic TLS configuration for homelab.local wildcard cert.
+# Generate with mkcert:
+#   mkcert -install
+#   mkcert "*.homelab.local" homelab.local
+# Then place the generated files here and update the paths below.
+
+tls:
+  certificates:
+    - certFile: /etc/traefik/dynamic/certs/wildcard.crt
+      keyFile: /etc/traefik/dynamic/certs/wildcard.key
+  stores:
+    default:
+      defaultCertificate:
+        certFile: /etc/traefik/dynamic/certs/wildcard.crt
+        keyFile: /etc/traefik/dynamic/certs/wildcard.key

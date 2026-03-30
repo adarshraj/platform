@@ -1,0 +1,39 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  group_by: ['alertname', 'stack']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 12h
+  receiver: 'default'
+
+receivers:
+  - name: 'default'
+    # Uncomment and configure your preferred notification channel:
+
+    # Slack:
+    # slack_configs:
+    #   - api_url: '${SLACK_WEBHOOK_URL}'
+    #     channel: '#alerts'
+    #     title: '{{ .GroupLabels.alertname }}'
+    #     text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+
+    # Email:
+    # email_configs:
+    #   - to: 'you@example.com'
+    #     from: 'alertmanager@homelab.local'
+    #     smarthost: 'smtp.example.com:587'
+    #     auth_username: 'user'
+    #     auth_password: '${SMTP_PASSWORD}'
+
+    # Webhook (generic):
+    # webhook_configs:
+    #   - url: 'http://your-webhook-endpoint/alerts'
+
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'stack']

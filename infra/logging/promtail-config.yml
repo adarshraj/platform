@@ -1,0 +1,48 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # Auto-discover all Docker containers via Docker socket
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      # Use container name as the "container" label
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: container
+
+      # Use compose service name as "service" label
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: service
+
+      # Use compose project (stack) name as "stack" label
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_project']
+        target_label: stack
+
+      # Use Docker image as "image" label
+      - source_labels: ['__meta_docker_container_label_com_docker_image']
+        target_label: image
+
+      # Drop containers with no compose project (raw docker run)
+      # Remove this if you want to capture those too
+      # - source_labels: [stack]
+      #   action: drop
+      #   regex: ''
+
+  # Collect host system logs (optional)
+  - job_name: system
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: varlogs
+          __path__: /var/log/*.log

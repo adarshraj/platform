@@ -1,0 +1,55 @@
+#!/bin/bash
+# Backup all PostgreSQL databases and critical volumes.
+# Runs daily via cron (set up by bootstrap.sh).
+# Optionally syncs to remote storage via rclone.
+
+set -euo pipefail
+
+BACKUP_DIR="${BACKUP_DIR:-/var/backups/platform}"
+DATE=$(date +%Y-%m-%d_%H%M%S)
+BACKUP_PATH="$BACKUP_DIR/$DATE"
+RETENTION_DAYS=7
+
+mkdir -p "$BACKUP_PATH"
+
+echo "[$DATE] Starting backup..."
+
+# --- PostgreSQL backups ---
+# Find all running postgres containers and dump their databases.
+POSTGRES_CONTAINERS=$(docker ps --filter "ancestor=postgres:16-alpine" --format "{{.Names}}" 2>/dev/null || true)
+POSTGRES_CONTAINERS+=" "$(docker ps --filter "name=db" --filter "ancestor=postgres" --format "{{.Names}}" 2>/dev/null || true)
+
+for container in $POSTGRES_CONTAINERS; do
+  [ -z "$container" ] && continue
+  db_name=$(docker inspect "$container" --format '{{range .Config.Env}}{{if (eq (slice . 0 13) "POSTGRES_DB=")}}{{slice . 13}}{{end}}{{end}}' 2>/dev/null || echo "postgres")
+  db_user=$(docker inspect "$container" --format '{{range .Config.Env}}{{if (eq (slice . 0 14) "POSTGRES_USER=")}}{{slice . 14}}{{end}}{{end}}' 2>/dev/null || echo "postgres")
+  echo "  Backing up PostgreSQL container: $container (db: $db_name)"
+  docker exec "$container" pg_dump -U "$db_user" "$db_name" \
+    | gzip > "$BACKUP_PATH/${container}-${db_name}.sql.gz" && echo "    ✓ $container" || echo "    ✗ Failed: $container"
+done
+
+# --- Infisical volume backup ---
+echo "  Backing up Infisical volume..."
+docker run --rm \
+  -v infisical_db_data:/data:ro \
+  -v "$BACKUP_PATH":/backup \
+  alpine tar czf "/backup/infisical-db-data.tar.gz" /data 2>/dev/null && echo "    ✓ Infisical" || echo "    ✗ Failed: Infisical"
+
+# --- Loki volume backup ---
+echo "  Backing up Loki volume..."
+docker run --rm \
+  -v loki_data:/data:ro \
+  -v "$BACKUP_PATH":/backup \
+  alpine tar czf "/backup/loki-data.tar.gz" /data 2>/dev/null && echo "    ✓ Loki" || echo "    ✗ Failed: Loki"
+
+# --- Remove old backups ---
+echo "  Pruning backups older than $RETENTION_DAYS days..."
+find "$BACKUP_DIR" -maxdepth 1 -type d -mtime "+$RETENTION_DAYS" -exec rm -rf {} + 2>/dev/null || true
+
+# --- Sync to remote (optional, requires rclone configured) ---
+if command -v rclone &>/dev/null && rclone listremotes | grep -q "backup:"; then
+  echo "  Syncing to remote storage..."
+  rclone sync "$BACKUP_DIR" "backup:platform-backups" --transfers=4 && echo "    ✓ Remote sync" || echo "    ✗ Remote sync failed"
+fi
+
+echo "[$DATE] Backup complete. Stored at: $BACKUP_PATH"
