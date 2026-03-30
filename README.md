@@ -386,6 +386,244 @@ This means zero configuration per app. Every new container is picked up automati
 
 **Log retention**: Configured to 30 days in `loki-config.yml`. Adjust `retention_period` to suit your disk space.
 
+### Configuring Your Apps for Logging
+
+#### The Golden Rule — Log to stdout
+
+Promtail collects logs by reading what containers write to **stdout and stderr**. Your app does not need to write to a file, use a special SDK, or know that Loki exists. As long as your app prints to stdout, Promtail picks it up automatically.
+
+```kotlin
+// Quarkus — this is picked up automatically
+logger.info("User logged in: $userId")
+logger.error("Database connection failed", exception)
+```
+
+```typescript
+// Node.js — this is picked up automatically
+console.log("Server started on port 3000")
+console.error("Failed to reach auth-service")
+```
+
+Never log to a file inside the container (e.g. `logs/app.log`) — Promtail won't find it, and the file grows forever until the container runs out of disk space.
+
+---
+
+#### Structured Logging (Recommended)
+
+Plain text logs are searchable by keyword, but structured JSON logs are far more powerful. With JSON logs, Loki can filter by individual fields like `level`, `userId`, `requestId`, `duration`, etc.
+
+**Without structured logging** (hard to filter):
+```
+2024-01-15 10:23:45 ERROR Failed to process payment for user 123: timeout after 5000ms
+```
+
+**With structured logging** (filterable by any field):
+```json
+{"timestamp":"2024-01-15T10:23:45Z","level":"error","message":"Failed to process payment","userId":123,"error":"timeout","durationMs":5000}
+```
+
+In Grafana you can then query:
+```
+{stack="finance-tracker"} | json | level="error" | durationMs > 3000
+```
+
+---
+
+#### Kotlin / Quarkus Apps
+
+Quarkus uses JBoss Logging under the hood. To switch to JSON output, add this to `src/main/resources/application.properties`:
+
+```properties
+# Switch console output to JSON format
+quarkus.log.console.json=true
+quarkus.log.console.json.pretty-print=false
+
+# Include useful fields in every log line
+quarkus.log.console.json.additional-field."app".value=${quarkus.application.name}
+quarkus.log.console.json.additional-field."app".type=string
+
+# Set log levels
+quarkus.log.level=INFO
+quarkus.log.category."com.yourorg".level=DEBUG
+```
+
+This produces JSON logs like:
+```json
+{
+  "timestamp": "2024-01-15T10:23:45.123Z",
+  "sequence": 42,
+  "loggerClassName": "org.jboss.logging.Logger",
+  "loggerName": "com.yourorg.BookService",
+  "level": "INFO",
+  "message": "Book created: id=123",
+  "app": "bookshelf-haven"
+}
+```
+
+To log structured fields from your Kotlin code:
+```kotlin
+import org.jboss.logging.Logger
+import org.jboss.logging.MDC
+
+@ApplicationScoped
+class BookService {
+    private val logger = Logger.getLogger(BookService::class.java)
+
+    fun createBook(userId: String, title: String): Book {
+        // MDC fields are included in every log line until cleared
+        MDC.put("userId", userId)
+        MDC.put("action", "createBook")
+
+        logger.info("Creating book: $title")
+
+        val book = // ... create book
+
+        logger.info("Book created: ${book.id}")
+        MDC.clear()
+        return book
+    }
+}
+```
+
+For **production vs development** — you probably want plain text locally and JSON on the server. Use Quarkus profiles:
+
+```properties
+# application.properties
+%dev.quarkus.log.console.json=false    # plain text in dev
+%prod.quarkus.log.console.json=true    # JSON in production (Docker)
+```
+
+---
+
+#### Node.js / SvelteKit Apps
+
+`console.log` works and Promtail picks it up, but for structured logging use **Pino** — it's the standard Node.js JSON logger, extremely fast, and zero config.
+
+**Install**:
+```bash
+npm install pino pino-pretty
+```
+
+**Setup** (`src/lib/logger.ts` — shared across the app):
+```typescript
+import pino from 'pino'
+
+const logger = pino({
+  level: process.env.LOG_LEVEL || 'info',
+  // In production (Docker): output JSON
+  // In dev: output pretty-printed text
+  transport: process.env.NODE_ENV === 'development'
+    ? { target: 'pino-pretty', options: { colorize: true } }
+    : undefined,
+  base: {
+    app: process.env.APP_NAME || 'unknown',  // appears in every log line
+  }
+})
+
+export default logger
+```
+
+**Using it**:
+```typescript
+import logger from '$lib/logger'
+
+// Simple message
+logger.info('Server started')
+
+// With structured fields — these are searchable in Grafana
+logger.info({ userId: '123', action: 'login' }, 'User logged in')
+logger.error({ userId: '123', error: err.message, stack: err.stack }, 'Payment failed')
+logger.warn({ requestId, durationMs: 4500 }, 'Slow request detected')
+```
+
+This produces:
+```json
+{"level":30,"time":1705312345123,"app":"finance-tracker","userId":"123","action":"login","msg":"User logged in"}
+{"level":50,"time":1705312345200,"app":"finance-tracker","userId":"123","error":"timeout","msg":"Payment failed"}
+```
+
+**In SvelteKit hooks** (`src/hooks.server.ts`) — log every request automatically:
+```typescript
+import logger from '$lib/logger'
+import type { Handle } from '@sveltejs/kit'
+
+export const handle: Handle = async ({ event, resolve }) => {
+  const start = Date.now()
+  const requestId = crypto.randomUUID()
+
+  // Attach requestId to all logs within this request
+  const reqLogger = logger.child({ requestId })
+
+  reqLogger.info({
+    method: event.request.method,
+    path: event.url.pathname,
+  }, 'Request received')
+
+  const response = await resolve(event)
+
+  reqLogger.info({
+    method: event.request.method,
+    path: event.url.pathname,
+    status: response.status,
+    durationMs: Date.now() - start,
+  }, 'Request completed')
+
+  return response
+}
+```
+
+---
+
+#### React / Vite Frontend Apps
+
+Frontend apps run in the browser — their `console.log` calls are not captured by Promtail (Promtail only sees server-side container logs). For frontend error tracking consider:
+
+- **Server-side API errors**: log them in your backend (Quarkus or SvelteKit server routes) — these are captured
+- **Client-side errors**: use an error boundary that sends errors to a backend endpoint, which logs them via Pino/Quarkus logger
+
+---
+
+#### Log Levels — Convention Across All Apps
+
+Use these levels consistently so Grafana filters work the same way across all services:
+
+| Level | When to use |
+|---|---|
+| `DEBUG` | Detailed info useful during development only. Disabled in production. |
+| `INFO` | Normal events: request received, user logged in, job completed |
+| `WARN` | Unexpected but recoverable: slow response, retry attempt, deprecated usage |
+| `ERROR` | Something failed and needs attention: exception, external service unreachable |
+
+Set `LOG_LEVEL=info` in Infisical for production, `LOG_LEVEL=debug` for development.
+
+---
+
+#### Querying Your Structured Logs in Grafana
+
+Once your apps log JSON, these queries become available in Grafana → Explore → Loki:
+
+```logql
+# All errors across all apps
+{stack=~".+"} | json | level="error"
+
+# All errors from finance-tracker in the last 1 hour
+{stack="finance-tracker"} | json | level="error"
+
+# Slow requests (over 2 seconds) in any app
+{service="backend"} | json | durationMs > 2000
+
+# All logs for a specific user across all apps
+{stack=~".+"} | json | userId="123"
+
+# All logs for a specific request ID (trace a single request)
+{stack="finance-tracker"} | json | requestId="abc-123-def"
+
+# Error rate over time (use as a Grafana panel)
+sum(rate({stack=~".+"} | json | level="error" [5m])) by (stack)
+```
+
+The last query can be turned into a Grafana dashboard panel showing error rate per app over time — a useful overview dashboard.
+
 ---
 
 ### Prometheus + Grafana — Metrics & Alerting
