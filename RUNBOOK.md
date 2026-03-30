@@ -138,3 +138,114 @@ infisical secrets set MY_VAR=value --env=production --projectId=<id>
 | Grafana | https://monitoring.homelab.local |
 | Infisical | https://secrets.homelab.local |
 | Verdaccio (npm) | https://npm.homelab.local |
+
+---
+
+## Portainer — First-Time Setup
+
+On first visit to `https://portainer.homelab.local`:
+1. Create an admin username and password — save these, there is no recovery without CLI access
+2. Click **Get Started** → **local** → **Connect**
+3. You are in the dashboard — the **local** environment shows all Docker containers on this host
+
+---
+
+## Alertmanager — Configure Slack Notifications
+
+1. Create a Slack incoming webhook:
+   - Go to `https://api.slack.com/apps` → **Create New App** → **From scratch**
+   - Name it (e.g. `homelab-alerts`), pick your workspace
+   - Left sidebar → **Incoming Webhooks** → toggle on → **Add New Webhook to Workspace**
+   - Pick a channel (e.g. `#alerts`) → **Allow**
+   - Copy the webhook URL (looks like `https://hooks.slack.com/services/T.../B.../...`)
+
+2. Edit `infra/monitoring/alertmanager.yml` — uncomment and fill the Slack block:
+   ```yaml
+   receivers:
+     - name: 'default'
+       slack_configs:
+         - api_url: 'https://hooks.slack.com/services/YOUR/WEBHOOK/URL'
+           channel: '#alerts'
+           title: '{{ .GroupLabels.alertname }}'
+           text: '{{ range .Alerts }}{{ .Annotations.description }}{{ "\n" }}{{ end }}'
+   ```
+
+3. Restart Alertmanager:
+   ```bash
+   cd ~/platform/infra/monitoring && docker compose restart alertmanager
+   ```
+
+4. Test it:
+   ```bash
+   # Send a test alert
+   curl -X POST http://localhost:9093/api/v1/alerts \
+     -H 'Content-Type: application/json' \
+     -d '[{"labels":{"alertname":"TestAlert","severity":"warning"},"annotations":{"description":"This is a test alert"}}]'
+   ```
+
+---
+
+## Alertmanager — Configure Email Notifications
+
+Edit `infra/monitoring/alertmanager.yml` — uncomment and fill the email block:
+```yaml
+receivers:
+  - name: 'default'
+    email_configs:
+      - to: 'you@example.com'
+        from: 'alertmanager@homelab.local'
+        smarthost: 'smtp.gmail.com:587'
+        auth_username: 'you@gmail.com'
+        auth_password: 'your-app-password'   # use Gmail App Password, not your real password
+        require_tls: true
+```
+
+For Gmail: create an App Password at `myaccount.google.com/apppasswords` (requires 2FA enabled).
+
+Restart: `cd ~/platform/infra/monitoring && docker compose restart alertmanager`
+
+---
+
+## Alertmanager — Add a Custom Alert Rule
+
+Custom alert rules go in `infra/monitoring/alerts.yml`. Add a new rule under an existing group or create a new group:
+
+```yaml
+groups:
+  - name: my_app_alerts
+    rules:
+      - alert: MyAppHighErrorRate
+        # PromQL expression — fires when condition is true for `for` duration
+        expr: |
+          rate(http_server_requests_seconds_count{job="my-app", status=~"5.."}[5m])
+          /
+          rate(http_server_requests_seconds_count{job="my-app"}[5m])
+          > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate in my-app"
+          description: "my-app is returning >5% errors for the last 2 minutes."
+```
+
+After editing, reload Prometheus (no restart needed):
+```bash
+curl -X POST http://localhost:9090/-/reload
+```
+
+Verify the rule loaded: Prometheus UI at `http://localhost:9090` → **Alerts** tab.
+
+---
+
+## Grafana — Import a Dashboard
+
+1. Go to `https://monitoring.homelab.local` → log in
+2. Left sidebar → **Dashboards** → **Import**
+3. Paste a dashboard ID from `grafana.com/grafana/dashboards` and click **Load**
+4. Select the Prometheus datasource → **Import**
+
+Recommended dashboards to import:
+- `14282` — Docker container metrics (CPU, memory, network per container)
+- `13639` — Loki Docker logs overview
+- `17346` — Traefik v3 request metrics

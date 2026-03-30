@@ -646,16 +646,70 @@ The last query can be turned into a Grafana dashboard panel showing error rate p
 - `13639` — Loki Docker logs
 - `17346` — Traefik v3
 
-**How app-level metrics work** (optional, for Quarkus backends):
-Quarkus automatically exposes a `/q/metrics` endpoint. Add these labels to the backend service in the app's `docker-compose.yml` to have Prometheus scrape it:
+**How app-level metrics work** (optional but recommended for Quarkus backends):
+
+First, add the Micrometer Prometheus extension to the backend's `pom.xml`:
+```xml
+<dependency>
+  <groupId>io.quarkus</groupId>
+  <artifactId>quarkus-micrometer-registry-prometheus</artifactId>
+</dependency>
+```
+
+This automatically exposes `/q/metrics` in Prometheus text format. No other code changes needed — Quarkus instruments HTTP requests, JVM memory, and GC automatically.
+
+Then add these three labels to the backend service in the app's `docker-compose.yml`:
+```yaml
+labels:
+  - "prometheus.scrape=true"       # opt-in to scraping
+  - "prometheus.port=8080"         # the container port (not host port)
+  - "prometheus.path=/q/metrics"   # Quarkus metrics path (default is /metrics for other frameworks)
+```
+
+If `prometheus.path` is omitted, Prometheus defaults to `/metrics`. Quarkus uses `/q/metrics` so the label is required.
+
+**For Node.js / SvelteKit / Express apps** (optional):
+
+Install the `prom-client` library:
+```bash
+npm install prom-client
+```
+
+Add a metrics endpoint to your server. In SvelteKit, create `src/routes/metrics/+server.ts`:
+```typescript
+import { register } from 'prom-client'
+import { collectDefaultMetrics } from 'prom-client'
+
+// Collect default Node.js metrics (event loop, memory, GC, etc.)
+collectDefaultMetrics()
+
+export async function GET() {
+  return new Response(await register.metrics(), {
+    headers: { 'Content-Type': register.contentType }
+  })
+}
+```
+
+Then add labels to the service in `docker-compose.yml`:
 ```yaml
 labels:
   - "prometheus.scrape=true"
-  - "prometheus.port=8080"
-  - "prometheus.path=/q/metrics"
+  - "prometheus.port=3000"
+  - "prometheus.path=/metrics"
 ```
 
-**Alert configuration**: Edit `infra/monitoring/alertmanager.yml` to add your Slack webhook or email SMTP settings. Uncomment the relevant block.
+For Express/Node.js apps, add a route:
+```typescript
+import { register, collectDefaultMetrics } from 'prom-client'
+collectDefaultMetrics()
+
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', register.contentType)
+  res.send(await register.metrics())
+})
+```
+
+**Alert configuration**: Edit `infra/monitoring/alertmanager.yml` to add your Slack webhook or email SMTP settings. See [RUNBOOK.md](RUNBOOK.md) for step-by-step Slack and email setup.
 
 **Config files**: `infra/monitoring/prometheus.yml`, `infra/monitoring/alerts.yml`, `infra/monitoring/alertmanager.yml`, `infra/monitoring/grafana/provisioning/`
 
@@ -747,9 +801,10 @@ platform/
 │   └── logs.sh                ← tails logs for a named app stack
 │
 └── docs/
-    ├── adding-new-app.md      ← complete checklist for onboarding any new app
-    ├── local-dev.md           ← dev machine setup: DNS, TLS trust, Infisical CLI, npm registry
-    └── decisions/             ← Architecture Decision Records (why each tool was chosen)
+    ├── adding-new-app.md           ← complete checklist for onboarding any new app
+    ├── local-dev.md                ← dev machine setup: DNS, TLS trust, Infisical CLI, npm registry
+    ├── troubleshooting-new-apps.md ← common errors when adding an app and how to fix them
+    └── decisions/                  ← Architecture Decision Records (why each tool was chosen)
         ├── 001-traefik-over-nginx.md
         ├── 002-infisical-over-vault.md
         └── 003-loki-over-elk.md
@@ -1037,15 +1092,36 @@ jobs:
 
 ### Required GitHub Secrets
 
-Set these at the **organization level** (GitHub → Settings → Secrets → Actions) so every repo inherits them without repeating the setup:
+Set these at the **organization level** so every repo inherits them automatically:
+1. Go to GitHub → your profile → **Settings** → **Organizations** → your org → **Settings**
+2. Left sidebar → **Secrets and variables** → **Actions** → **New organization secret**
+
+If you don't have a GitHub org (personal account only), set them at repo level: each repo → Settings → Secrets and variables → Actions.
 
 | Secret | How to get it |
 |---|---|
-| `INFISICAL_CLIENT_ID` | Infisical UI → your project → Access → Machine Identities → Create |
+| `INFISICAL_CLIENT_ID` | See "What is a Machine Identity" below |
 | `INFISICAL_CLIENT_SECRET` | Same screen as above |
 | `PORTAINER_WEBHOOK_URL_<APPNAME>` | Portainer UI → Stacks → your stack → Webhooks → copy URL (one per app) |
 
 `GITHUB_TOKEN` is injected automatically by GitHub — no setup needed.
+
+#### What is a Machine Identity?
+
+A Machine Identity is a non-human account in Infisical — like a service account. It is used by GitHub Actions (and other automated systems) to authenticate with Infisical and fetch secrets, without using your personal login credentials.
+
+**Why not use your personal account?** Your personal credentials would be hardcoded in GitHub secrets. If you rotate your password or enable 2FA, CI breaks. A Machine Identity has its own credentials scoped only to the projects and environments it needs.
+
+**How to create one:**
+1. Go to `https://secrets.homelab.local` → log in
+2. Navigate to your **Organization** (top-left dropdown)
+3. Left sidebar → **Access Control** → **Machine Identities** → **Create identity**
+4. Give it a name (e.g. `github-actions-ci`)
+5. After creating it, click the identity → **Client Credentials** → **Generate credentials**
+6. Copy the **Client ID** and **Client Secret** — paste them into GitHub secrets as `INFISICAL_CLIENT_ID` and `INFISICAL_CLIENT_SECRET`
+7. Back in Infisical, go to each app **Project** → **Access Control** → **Machine Identities** → add `github-actions-ci` with `reader` role for production environment
+
+One Machine Identity can be reused across all apps — you just grant it access to each project individually.
 
 ---
 
