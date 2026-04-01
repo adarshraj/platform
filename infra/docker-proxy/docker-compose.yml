@@ -1,0 +1,54 @@
+services:
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy:0.3.0
+    container_name: docker-proxy
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 128m
+    cpus: 0.25
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      # Default deny: all API endpoints are disabled unless explicitly enabled.
+      # Only expose what Traefik, Prometheus, and Promtail need.
+
+      # --- Read-only container metadata (used by all three) ---
+      CONTAINERS: 1       # GET /containers — list and inspect containers
+      NETWORKS: 1         # GET /networks — Traefik needs network info for routing
+
+      # --- Docker events stream (used by Traefik for live discovery) ---
+      EVENTS: 1           # GET /events — real-time container start/stop events
+
+      # --- Everything else stays disabled (defaults to 0) ---
+      # AUTH: 0
+      # SECRETS: 0
+      # POST: 0            # No write operations at all
+      # BUILD: 0
+      # COMMIT: 0
+      # CONFIGS: 0
+      # DISTRIBUTION: 0
+      # EXEC: 0
+      # IMAGES: 0
+      # INFO: 0
+      # NODES: 0
+      # PLUGINS: 0
+      # SERVICES: 0
+      # SESSION: 0
+      # SWARM: 0
+      # SYSTEM: 0
+      # TASKS: 0
+      # VOLUMES: 0
+    networks:
+      - socket_proxy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:2375/version || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+networks:
+  socket_proxy:
+    external: true

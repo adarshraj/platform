@@ -11,6 +11,7 @@
 #                           Use only when you have confirmed the app does not need injected secrets.
 
 set -euo pipefail
+umask 077
 
 ALLOW_EMPTY_SECRETS=false
 POSITIONAL=()
@@ -47,26 +48,33 @@ echo "Deploying $APP ($ENV)..."
 # Fetch secrets from Infisical if CLI is available.
 # By default, failure is fatal to prevent deploying with missing secrets.
 # Pass --allow-empty-secrets to override.
-ENV_FILE="/tmp/platform-deploy-$APP-$$.env"
+ENV_FILE="$(mktemp /tmp/platform-deploy-${APP}.XXXXXX.env)"
+INFISICAL_ERR_FILE="$(mktemp /tmp/infisical-err-${APP}.XXXXXX.log)"
+cleanup() {
+  rm -f "$ENV_FILE" "$INFISICAL_ERR_FILE"
+}
+trap cleanup EXIT INT TERM
 if command -v infisical &>/dev/null; then
   echo "  Fetching secrets from Infisical..."
-  if ! infisical export --env="$ENV" --projectName="$APP" --format=dotenv > "$ENV_FILE" 2>/tmp/infisical-err-$$.txt; then
-    cat /tmp/infisical-err-$$.txt >&2
-    rm -f /tmp/infisical-err-$$.txt
+  if ! infisical export --env="$ENV" --projectName="$APP" --format=dotenv > "$ENV_FILE" 2>"$INFISICAL_ERR_FILE"; then
+    if [ -s "$INFISICAL_ERR_FILE" ]; then
+      while IFS= read -r line; do
+        echo "$line" >&2
+      done < "$INFISICAL_ERR_FILE"
+    fi
     if [ "$ALLOW_EMPTY_SECRETS" = "true" ]; then
       echo "  Warning: Could not fetch secrets from Infisical. Continuing with empty env (--allow-empty-secrets set)."
-      touch "$ENV_FILE"
+      : > "$ENV_FILE"
     else
       echo "  ERROR: Could not fetch secrets from Infisical. Aborting deploy."
       echo "  To deploy without secrets, pass --allow-empty-secrets."
       exit 1
     fi
   fi
-  rm -f /tmp/infisical-err-$$.txt
 else
   if [ "$ALLOW_EMPTY_SECRETS" = "true" ]; then
     echo "  Warning: Infisical CLI not installed. Continuing with empty env (--allow-empty-secrets set)."
-    touch "$ENV_FILE"
+    : > "$ENV_FILE"
   else
     echo "  ERROR: Infisical CLI not installed. Aborting deploy."
     echo "  Install infisical or pass --allow-empty-secrets to override."
@@ -81,8 +89,5 @@ docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull
 # Start / restart the stack
 echo "  Starting stack..."
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans
-
-# Clean up temp env file
-rm -f "$ENV_FILE"
 
 echo "  ✓ $APP deployed."

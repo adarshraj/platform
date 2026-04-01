@@ -1,0 +1,21 @@
+# ForwardAuth middleware — apply to routers with: middlewares=platform-auth@file
+# Sends the original request to auth-service /auth/verify.
+# If 200: request proceeds, X-Auth-User-Id/Email headers forwarded to backend.
+# If 401: user is redirected to the auth-service login page.
+
+http:
+  middlewares:
+    platform-auth:
+      forwardAuth:
+        address: http://auth-service:8703/auth/verify
+        trustForwardHeader: true
+        authResponseHeaders:
+          - X-Auth-User-Id
+          - X-Auth-User-Email
+
+    # Combined middleware chain for admin UIs: IP allowlist + SSO
+    admin-auth:
+      chain:
+        middlewares:
+          - internal-only@docker
+          - platform-auth

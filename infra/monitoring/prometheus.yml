@@ -31,13 +31,57 @@ scrape_configs:
     static_configs:
       - targets: ['traefik:8082']
 
+  # Blackbox HTTP probes — checks real HTTPS endpoints are responding
+  - job_name: blackbox
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          # Platform UIs
+          - https://traefik.homelab.local
+          - https://portainer.homelab.local
+          - https://monitoring.homelab.local
+          - https://secrets.homelab.local
+          - https://npm.homelab.local
+          - https://status.homelab.local
+          # Shared services
+          - https://auth.homelab.local
+          - https://aiwrap.homelab.local
+          - https://docbucket.homelab.local
+          # Applications
+          - https://bookshelf.homelab.local
+          - https://vahan.homelab.local
+          - https://family-roots.homelab.local
+          - https://family-vitals.homelab.local
+          - https://vitals-vault.homelab.local
+          - https://f1pulse.homelab.local
+          - https://finance.homelab.local
+          - https://family-health.homelab.local
+          - https://vuln.homelab.local
+          # Utilities
+          - https://shortcuts.homelab.local
+          - https://upstarter.homelab.local
+          - https://launchtracker.homelab.local
+          - https://launchpad.homelab.local
+          - https://wishlister.homelab.local
+          - https://heicconvert.homelab.local
+          - https://difference.homelab.local
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
   # Auto-discover apps that opt-in with Docker labels:
   #   prometheus.scrape=true
   #   prometheus.port=<container-port>
   #   prometheus.path=/metrics  (optional, defaults to /metrics)
   - job_name: apps
     docker_sd_configs:
-      - host: unix:///var/run/docker.sock
+      - host: http://docker-proxy:2375
         refresh_interval: 15s
     relabel_configs:
       - source_labels: [__meta_docker_container_label_prometheus_scrape]

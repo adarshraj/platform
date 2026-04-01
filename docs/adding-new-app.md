@@ -3,6 +3,8 @@
 Complete checklist for onboarding any new application or shared library into the platform.
 Follow the steps in order — each step depends on the previous one.
 
+> **No app code changes required.** All platform integration is in `docker-compose.yml` (labels, hardening) and `.github/workflows/deploy.yml` (CI). Your application code stays portable — no platform SDK, no special libraries, no lock-in. See [App Security & Portability](../README.md#11-app-security--portability) for details.
+
 ---
 
 ## Table of Contents
@@ -108,6 +110,12 @@ services:
     image: ghcr.io/adarshraj/my-app-frontend:latest
     expose:
       - "3000"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 512m
+    cpus: 1.0
     networks:
       - platform_proxy
     labels:
@@ -117,11 +125,22 @@ services:
       - "traefik.http.routers.my-app.tls=true"
       - "traefik.http.services.my-app.loadbalancer.server.port=3000"
       - "traefik.http.routers.my-app.middlewares=ratelimit@docker,secure-headers@docker"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   backend:
     image: ghcr.io/adarshraj/my-app-backend:latest
     expose:
       - "8080"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 1g
+    cpus: 1.0
     networks:
       - platform_proxy
       - my-app-internal
@@ -133,11 +152,22 @@ services:
       - "traefik.http.routers.my-app-api.tls=true"
       - "traefik.http.services.my-app-api.loadbalancer.server.port=8080"
       - "traefik.http.routers.my-app-api.middlewares=ratelimit@docker,secure-headers@docker"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/q/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   db:
     image: postgres:16-alpine
     expose:
       - "5432"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 512m
+    cpus: 1.0
     networks:
       - my-app-internal     # NOT on platform_proxy — database is never reachable externally
     environment:
@@ -146,6 +176,11 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - my-app-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U myapp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   my-app-db:
@@ -167,6 +202,12 @@ services:
     image: ghcr.io/adarshraj/my-app:latest
     expose:
       - "3000"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 512m
+    cpus: 1.0
     networks:
       - platform_proxy
     labels:
@@ -176,6 +217,11 @@ services:
       - "traefik.http.routers.my-app.tls=true"
       - "traefik.http.services.my-app.loadbalancer.server.port=3000"
       - "traefik.http.routers.my-app.middlewares=ratelimit@docker,secure-headers@docker"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
 networks:
   platform_proxy:
@@ -192,6 +238,12 @@ services:
     image: ghcr.io/adarshraj/my-service:latest
     expose:
       - "8080"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 1g
+    cpus: 1.0
     networks:
       - platform_proxy
       - my-service-internal
@@ -203,11 +255,22 @@ services:
       - "traefik.http.services.my-service.loadbalancer.server.port=8080"
       # Internal services: restrict to LAN only
       - "traefik.http.routers.my-service.middlewares=internal-only@docker"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/q/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   db:
     image: postgres:16-alpine
     expose:
       - "5432"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 512m
+    cpus: 1.0
     networks:
       - my-service-internal
     environment:
@@ -216,6 +279,11 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - my-service-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U myservice"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   my-service-db:
@@ -239,6 +307,12 @@ services:
     image: ghcr.io/adarshraj/my-app:latest
     expose:
       - "3000"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 1g
+    cpus: 1.0
     networks:
       - platform_proxy
       - my-app-internal
@@ -249,11 +323,22 @@ services:
       - "traefik.http.routers.my-app.tls=true"
       - "traefik.http.services.my-app.loadbalancer.server.port=3000"
       - "traefik.http.routers.my-app.middlewares=ratelimit@docker,secure-headers@docker"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   db:
     image: postgres:16-alpine
     expose:
       - "5432"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 512m
+    cpus: 1.0
     networks:
       - my-app-internal
     environment:
@@ -262,6 +347,11 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - my-app-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U myapp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   my-app-db:
@@ -457,6 +547,8 @@ grep -q "^\.env" .gitignore || echo ".env*" >> .gitignore
 
 Create `.github/workflows/deploy.yml` in your app repo.
 
+> **No build-time secrets?** If your app doesn't need Infisical secrets at build time, omit the `INFISICAL_CLIENT_ID` / `INFISICAL_CLIENT_SECRET` secrets block entirely. This skips the Infisical fetch and avoids noisy "0 secrets exported" warnings in CI.
+
 ### Type A — Full-Stack
 
 ```yaml
@@ -649,6 +741,9 @@ git clone https://github.com/adarshraj/my-app ~/apps/my-app
 **Secrets**
 - [ ] App starts without missing environment variable errors
 
+**Container health**
+- [ ] `docker inspect --format='{{.State.Health.Status}}' <container>` returns `healthy` for all services
+
 **Finalise**
 
 ---
@@ -713,8 +808,8 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v4       # pin to SHA in production
+      - uses: actions/setup-node@v4    # pin to SHA in production
         with:
           node-version: 20
           registry-url: https://npm.homelab.local

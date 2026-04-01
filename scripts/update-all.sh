@@ -14,6 +14,7 @@ fi
 
 echo "=== Updating all stacks in $APPS_DIR ==="
 
+shopt -s nullglob
 for compose_file in "$APPS_DIR"/*/docker-compose.yml; do
   app=$(basename "$(dirname "$compose_file")")
   echo ""

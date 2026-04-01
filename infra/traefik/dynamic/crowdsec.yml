@@ -1,0 +1,15 @@
+# CrowdSec bouncer middleware — apply to routers with: middlewares=crowdsec@file
+# Blocks IPs flagged by CrowdSec (brute force, scanners, CVE exploits, community blocklists).
+
+http:
+  middlewares:
+    crowdsec:
+      plugin:
+        crowdsec-bouncer:
+          enabled: true
+          crowdsecLapiScheme: http
+          crowdsecLapiHost: crowdsec:8080
+          crowdsecMode: stream
+          updateIntervalSeconds: 15
+          defaultDecisionSeconds: 300
+          crowdsecLapiKey: ${CROWDSEC_BOUNCER_API_KEY}

@@ -68,6 +68,8 @@ sudo apt install infisical
 scoop install infisical
 ```
 
+> **Trust model**: The Linux install pipes a remote script to `sudo bash` — the same trust pattern as the Docker install in `bootstrap.sh`. This is standard for the Infisical CLI and acceptable for homelab/dev use. For stricter environments, download the `.deb` package directly from [Infisical's releases](https://github.com/Infisical/infisical/releases) and verify the checksum before installing.
+
 Login and set default org:
 ```bash
 infisical login --domain=https://secrets.homelab.local

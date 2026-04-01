@@ -15,11 +15,16 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: production
+    permissions: {}
     steps:
       - name: Trigger Portainer stack update
+        env:
+          STACK_NAME: ${{ inputs.stack-name }}
+          WEBHOOK_URL: ${{ secrets.PORTAINER_WEBHOOK_URL }}
         run: |
-          echo "Deploying stack: ${{ inputs.stack-name }}"
-          HTTP_STATUS=$(curl -X POST "${{ secrets.PORTAINER_WEBHOOK_URL }}" \
+          echo "Deploying stack: $STACK_NAME"
+          HTTP_STATUS=$(curl -X POST "$WEBHOOK_URL" \
             --silent \
             --output /dev/null \
             --write-out "%{http_code}" \

@@ -63,6 +63,27 @@ platform:
     type: platform
     stack_dir: infra/registry
 
+  - name: crowdsec
+    subdomain: ~              # internal only, no external route
+    ports: [8080]
+    repo: adarshraj/platform
+    type: platform
+    stack_dir: infra/traefik
+
+  - name: uptime-kuma
+    subdomain: status.homelab.local
+    ports: [3001]
+    repo: adarshraj/platform
+    type: platform
+    stack_dir: infra/uptime-kuma
+
+  - name: docker-proxy
+    subdomain: ~              # internal only, no external route
+    ports: [2375]
+    repo: adarshraj/platform
+    type: platform
+    stack_dir: infra/docker-proxy
+
 # ─── Shared Services ────────────────────────────────────────────────────────
 
 shared_services:

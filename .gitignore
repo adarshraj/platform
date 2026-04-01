@@ -1,1 +1,19 @@
 .idea/
+
+# Environment and secrets files
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
+
+# TLS certs/keys and ACME state
+infra/traefik/dynamic/certs/*
+infra/traefik/acme.json
+
+# Catch private keys anywhere in the repo
+*.key
+*.pem
+
+# Backup artifacts
+*.sql.gz
+*.tar.gz

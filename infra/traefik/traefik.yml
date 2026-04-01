@@ -15,14 +15,28 @@ entryPoints:
           permanent: true
   websecure:
     address: ":443"
+    http:
+      middlewares:
+        - crowdsec@file
+  metrics:
+    address: ":8082"
 
 providers:
   docker:
     exposedByDefault: false   # containers must opt-in with traefik.enable=true
     network: platform_proxy
+    endpoint: "tcp://docker-proxy:2375"   # filtered socket proxy — no direct Docker socket access
   file:
     directory: /etc/traefik/dynamic
     watch: true               # hot-reload dynamic config changes
+  plugin: {}
+
+# CrowdSec bouncer plugin — blocks malicious IPs detected by CrowdSec
+experimental:
+  plugins:
+    crowdsec-bouncer:
+      moduleName: github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin
+      version: v1.3.5
 
 # Uncomment for public domains with Let's Encrypt:
 # certificatesResolvers:
@@ -38,10 +52,12 @@ providers:
 log:
   level: INFO
 
-accessLog: {}
+accessLog:
+  filePath: /var/log/traefik/access.log
+  bufferingSize: 100
 
 metrics:
   prometheus:
-    entryPoint: websecure
+    entryPoint: metrics
     addEntryPointsLabels: true
     addServicesLabels: true

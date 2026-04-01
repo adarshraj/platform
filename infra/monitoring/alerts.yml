@@ -38,6 +38,35 @@ groups:
           summary: "Container {{ $labels.name }} high CPU usage"
           description: "Container {{ $labels.name }} has been using >90% CPU for 10 minutes."
 
+  - name: endpoint_health
+    rules:
+      - alert: EndpointDown
+        expr: probe_success == 0
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Endpoint {{ $labels.instance }} is down"
+          description: "Blackbox probe has been failing for {{ $labels.instance }} for more than 3 minutes."
+
+      - alert: EndpointSlowResponse
+        expr: probe_duration_seconds > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Endpoint {{ $labels.instance }} is slow"
+          description: "Endpoint {{ $labels.instance }} is taking {{ $value | humanize }}s to respond."
+
+      - alert: SSLCertExpiringSoon
+        expr: probe_ssl_earliest_cert_expiry - time() < 86400 * 14
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "SSL cert for {{ $labels.instance }} expires in less than 14 days"
+          description: "Certificate expires in {{ $value | humanizeDuration }}."
+
   - name: disk
     rules:
       # If mountpoint="/" produces no data on your distro (e.g. bind-mount layouts),

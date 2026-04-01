@@ -1,0 +1,67 @@
+name: Validate Platform Config
+
+on:
+  pull_request:
+    paths:
+      - 'infra/**'
+      - 'scripts/**'
+      - 'services.yaml'
+      - '.github/workflows/**'
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq yamllint shellcheck
+
+      - name: Lint YAML files
+        run: |
+          yamllint -d "{extends: relaxed, rules: {line-length: {max: 200}, truthy: disable}}" \
+            services.yaml \
+            infra/monitoring/prometheus.yml \
+            infra/monitoring/alerts.yml \
+            infra/monitoring/blackbox.yml \
+            infra/logging/promtail-config.yml \
+            infra/traefik/traefik.yml
+
+      - name: Lint shell scripts
+        run: shellcheck scripts/*.sh
+
+      - name: Validate Docker Compose files
+        run: |
+          for dir in infra/*/; do
+            if [ -f "$dir/docker-compose.yml" ]; then
+              echo "Validating $dir/docker-compose.yml..."
+              docker compose -f "$dir/docker-compose.yml" config --quiet 2>&1 || {
+                echo "FAIL: $dir/docker-compose.yml"
+                exit 1
+              }
+            fi
+          done
+
+      - name: Validate services.yaml structure
+        run: |
+          python3 -c "
+          import yaml, sys
+          with open('services.yaml') as f:
+              data = yaml.safe_load(f)
+          required_sections = ['platform', 'shared_services', 'apps']
+          for section in required_sections:
+              if section not in data:
+                  print(f'Missing section: {section}')
+                  sys.exit(1)
+              for svc in data[section]:
+                  for field in ['name', 'type', 'repo']:
+                      if field not in svc:
+                          print(f'Service {svc.get(\"name\", \"unknown\")} missing field: {field}')
+                          sys.exit(1)
+          print('services.yaml structure OK')
+          "

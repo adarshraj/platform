@@ -4,7 +4,10 @@
 # Optionally syncs to remote storage via rclone.
 
 set -euo pipefail
+umask 077
 
+# Pin the utility image used for volume backups to avoid pulling an unknown :latest on each run.
+ALPINE_IMAGE="alpine:3.21"
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/platform}"
 DATE=$(date +%Y-%m-%d_%H%M%S)
 BACKUP_PATH="$BACKUP_DIR/$DATE"
@@ -53,7 +56,7 @@ echo "  Backing up Infisical volume..."
 if docker run --rm \
   -v infisical_db_data:/data:ro \
   -v "$BACKUP_PATH":/backup \
-  alpine tar czf "/backup/infisical-db-data.tar.gz" /data 2>/dev/null; then
+  "$ALPINE_IMAGE" tar czf "/backup/infisical-db-data.tar.gz" /data 2>/dev/null; then
   echo "    ✓ Infisical"
 else
   echo "    ✗ Failed: Infisical"
@@ -69,19 +72,26 @@ if docker ps --format "{{.Names}}" | grep -q "^loki$"; then
   docker stop loki >/dev/null
 fi
 
+# Ensure Loki is restarted even if the script is interrupted or fails
+restart_loki() {
+  if [ "$LOKI_WAS_RUNNING" = "true" ]; then
+    docker start loki >/dev/null 2>&1 || true
+  fi
+}
+trap restart_loki EXIT INT TERM
+
 if docker run --rm \
   -v loki_data:/data:ro \
   -v "$BACKUP_PATH":/backup \
-  alpine tar czf "/backup/loki-data.tar.gz" /data 2>/dev/null; then
+  "$ALPINE_IMAGE" tar czf "/backup/loki-data.tar.gz" /data 2>/dev/null; then
   echo "    ✓ Loki"
 else
   echo "    ✗ Failed: Loki"
   BACKUP_FAILURES=$((BACKUP_FAILURES + 1))
 fi
 
-if [ "$LOKI_WAS_RUNNING" = "true" ]; then
-  docker start loki >/dev/null
-fi
+restart_loki
+trap - EXIT INT TERM
 
 # --- Remove old backups ---
 echo "  Pruning backups older than $RETENTION_DAYS days..."
@@ -90,7 +100,7 @@ find "$BACKUP_DIR" -maxdepth 1 -type d -mtime "+$RETENTION_DAYS" -exec rm -rf {}
 # --- Sync to remote (optional, requires rclone configured) ---
 if command -v rclone &>/dev/null && rclone listremotes | grep -q "backup:"; then
   echo "  Syncing to remote storage..."
-  rclone sync "$BACKUP_DIR" "backup:platform-backups" --transfers=4 && echo "    ✓ Remote sync" || echo "    ✗ Remote sync failed"
+  rclone copy "$BACKUP_DIR" "backup:platform-backups" --transfers=4 && echo "    ✓ Remote sync" || echo "    ✗ Remote sync failed"
 fi
 
 if [ "${BACKUP_FAILURES:-0}" -gt 0 ]; then

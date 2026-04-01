@@ -29,4 +29,4 @@ fi
 echo "Tailing logs for $APP${SERVICE:+ ($SERVICE)}... (Ctrl+C to stop)"
 echo ""
 
-docker compose -f "$COMPOSE_FILE" logs -f --tail=100 $SERVICE
+docker compose -f "$COMPOSE_FILE" logs -f --tail=100 ${SERVICE:+"$SERVICE"}

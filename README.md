@@ -13,19 +13,24 @@ This repo does **not** contain application code — it contains the platform lay
 4. [Dependency Management — How It Works](#4-dependency-management--how-it-works)
 5. [Tool Breakdown](#5-tool-breakdown)
    - [Traefik — Reverse Proxy](#traefik--reverse-proxy)
+   - [CrowdSec — Threat Detection & IP Blocking](#crowdsec--threat-detection--ip-blocking)
    - [Portainer — Deployment UI](#portainer--deployment-ui)
    - [Infisical — Secrets Management](#infisical--secrets-management)
    - [Loki + Promtail — Centralized Logging](#loki--promtail--centralized-logging)
    - [Prometheus + Grafana — Metrics & Alerting](#prometheus--grafana--metrics--alerting)
+   - [Blackbox Exporter — Endpoint Probing](#blackbox-exporter--endpoint-probing)
    - [Verdaccio — Private npm Registry](#verdaccio--private-npm-registry)
+   - [Uptime Kuma — Status Page](#uptime-kuma--status-page)
 6. [Repo Structure](#6-repo-structure)
 7. [Quick Start — Homelab](#7-quick-start--homelab)
 8. [Quick Start — VPS (Production)](#8-quick-start--vps-production)
 9. [CI/CD — Reusable Workflows](#9-cicd--reusable-workflows)
 10. [Adding a New App](#10-adding-a-new-app)
-11. [Security Model](#11-security-model)
-12. [Backup & Recovery](#12-backup--recovery)
-13. [Troubleshooting](#13-troubleshooting)
+11. [App Security & Portability](#11-app-security--portability)
+12. [Security Model](#12-security-model)
+13. [Backup & Recovery](#13-backup--recovery)
+14. [Troubleshooting](#14-troubleshooting)
+15. [Platform Roadmap](#15-platform-roadmap)
 
 ---
 
@@ -82,6 +87,10 @@ Your Browser or Device
    │  cAdvisor    — exposes per-container metrics to Prometheus     │
    │  node-exporter — exposes host-level metrics (disk, CPU, memory) │
    │  Verdaccio   — private npm registry for shared TS libraries    │
+   │  CrowdSec    — detects and blocks malicious IPs automatically  │
+   │  Uptime Kuma — public status page for service availability    │
+   │  Blackbox    — probes all endpoints, alerts on downtime        │
+   │  Docker Proxy — filtered socket proxy for safe container discovery│
    └────────────────────────────────────────────────────────────────┘
 ```
 
@@ -143,7 +152,7 @@ When this container starts, Traefik automatically detects the labels via Docker 
 
 ### How Traefik Knows About Your Containers
 
-Traefik runs with access to the Docker socket (`/var/run/docker.sock`). This lets it watch Docker events in real time. When a container starts with `traefik.enable=true`, Traefik registers it. When the container stops, Traefik deregisters it. Everything is automatic.
+Traefik connects to the Docker API via a [docker-socket-proxy](https://github.com/Tecnativa/docker-socket-proxy) (`infra/docker-proxy`) instead of mounting the Docker socket directly. The proxy exposes only read-only container, network, and event endpoints — enough for Traefik to watch Docker events in real time. When a container starts with `traefik.enable=true`, Traefik registers it. When the container stops, Traefik deregisters it. Everything is automatic.
 
 ```yaml
 # infra/traefik/traefik.yml
@@ -151,6 +160,7 @@ providers:
   docker:
     exposedByDefault: false   # containers must opt-in with traefik.enable=true
     network: platform_proxy
+    endpoint: "tcp://docker-proxy:2375"
 ```
 
 `exposedByDefault: false` is important — it means a container with no labels is completely invisible to Traefik. Only containers that explicitly opt in are routed.
@@ -221,7 +231,27 @@ npm install @adarshraj/auth-client --registry https://npm.homelab.local
 
 This means bug fixes and updates propagate to all consumers via `npm update`. See [Verdaccio — Private npm Registry](#verdaccio--private-npm-registry) for setup.
 
-### C. What This Platform Does NOT Solve
+### C. Docker Image Updates (Renovate)
+
+All infrastructure Docker images in `infra/` are pinned to specific version tags (e.g. `grafana/grafana:12.4.2` instead of `latest`). This makes deployments reproducible and prevents surprise breakage from upstream changes.
+
+To keep these versions up to date, the repo includes a [Renovate](https://github.com/renovatebot/renovate) configuration (`renovate.json`). Renovate scans the `docker-compose.yml` files, detects pinned image versions, and opens pull requests when newer versions are available.
+
+**How it works**:
+- Runs weekly (Monday before 6am)
+- Groups updates by stack — you get one PR for all monitoring images, one for logging, one for secrets, etc.
+- Patch updates (e.g. `v3.10.0` → `v3.10.1`) are automerged
+- Postgres major version bumps are blocked (these require manual migration)
+
+**To activate**: Install the [Renovate GitHub App](https://github.com/apps/renovate) on this repo, or self-host Renovate. The `renovate.json` config is picked up automatically.
+
+**Manual alternative**: If you prefer not to use Renovate, you can check for updates by running:
+```bash
+# Check what you're currently running vs what's available
+docker compose pull --dry-run   # shows which images have newer versions
+```
+
+### D. What This Platform Does NOT Solve
 
 - **npm/Maven package version conflicts** between apps — each app manages its own `package.json` / `pom.xml`
 - **Database schema migrations** across apps — each app manages its own Flyway/Prisma migrations
@@ -257,6 +287,27 @@ This means bug fixes and updates propagate to all consumers via `npm update`. Se
 - `secure-headers@docker` — adds security HTTP headers (HSTS, X-Frame-Options, etc.)
 
 **Traefik dashboard**: Available at `https://traefik.homelab.local`. Shows all registered routes, services, and middlewares in real time.
+
+---
+
+### CrowdSec — Threat Detection & IP Blocking
+
+**What it is**: An open-source security engine that detects and blocks malicious traffic using behavior analysis and community-shared threat intelligence.
+
+**What it does here**:
+- Parses Traefik access logs in real time to detect brute force attacks, vulnerability scanners, and known CVE exploitation attempts
+- Shares and receives threat intelligence from the CrowdSec community (crowd-sourced IP reputation)
+- Blocks flagged IPs at the Traefik entrypoint level via the [CrowdSec bouncer plugin](https://plugins.traefik.io/plugins/6335346ca4caa9ddeffda116/crowdsec-bouncer-traefik-plugin) — malicious requests are dropped before they reach any app
+- Installs three detection collections: `traefik` (log parsing), `http-cve` (known exploit patterns), `base-http-scenarios` (brute force, scanning)
+
+**How it works**: CrowdSec runs alongside Traefik in the same compose stack. Traefik writes access logs to a shared volume. CrowdSec reads those logs, matches them against detection scenarios, and makes ban decisions. The Traefik bouncer plugin queries CrowdSec's Local API every 15 seconds (stream mode) and blocks any IPs with active decisions. All HTTPS traffic passes through the bouncer automatically — it's applied at the `websecure` entrypoint.
+
+**Config files**:
+- `infra/traefik/crowdsec/acquis.yaml` — tells CrowdSec where to find Traefik logs
+- `infra/traefik/dynamic/crowdsec.yml` — bouncer middleware configuration
+- `infra/traefik/.env` — bouncer API key (generated on first run)
+
+**Management**: See [RUNBOOK.md — CrowdSec](RUNBOOK.md#crowdsec--setup--management) for setup steps and common commands (list bans, whitelist IPs, update hub).
 
 ---
 
@@ -327,13 +378,15 @@ Organization: adarshraj
 
 3. **GitHub Actions CI/CD** — the `Infisical/secrets-action` injects secrets into the workflow:
    ```yaml
-   - uses: Infisical/secrets-action@v1
+   - uses: Infisical/secrets-action@v1   # pin to SHA in production; shown as @v1 here for readability
      with:
        client-id: ${{ secrets.INFISICAL_CLIENT_ID }}
        client-secret: ${{ secrets.INFISICAL_CLIENT_SECRET }}
        env-slug: production
        project-slug: bookshelf-haven
    ```
+
+**Image tag change (v0.147.0+)**: Infisical retired the `-postgres` tag suffix after `v0.146.0`. Versions `v0.147.0` and later use a single unified image that supports PostgreSQL natively. The image tag is now just `infisical/infisical:vX.Y.Z` (no `-postgres` suffix). If you are upgrading from an older version that used `latest-postgres`, update the tag in `infra/secrets/docker-compose.yml` accordingly.
 
 **Migrating from .env files**:
 ```bash
@@ -354,11 +407,12 @@ infisical secrets push --env=production --projectName=bookshelf-haven < .env.pro
 
 **What they do here**: Every container's logs — regardless of which app or stack — are automatically collected and searchable in Grafana. You never need to `docker logs` into individual containers again.
 
-**How Promtail finds your containers**: It mounts the Docker socket and the Docker log directory:
+**How Promtail finds your containers**: It connects to the docker-socket-proxy for container discovery and mounts the Docker log directory for reading logs:
 ```yaml
 volumes:
   - /var/lib/docker/containers:/var/lib/docker/containers:ro
-  - /var/run/docker.sock:/var/run/docker.sock:ro
+networks:
+  - socket_proxy   # container discovery via docker-socket-proxy
 ```
 
 It auto-discovers all running containers and tags each log line with:
@@ -382,6 +436,8 @@ This means zero configuration per app. Every new container is picked up automati
 # All backend logs across all apps
 {service="backend"}
 ```
+
+**Promtail deprecation notice**: Grafana has deprecated Promtail in favor of [Grafana Alloy](https://grafana.com/docs/alloy/latest/) starting with the Loki 3.0 release. Promtail `3.6.8` is the last published version and receives no further updates. The current setup continues to work, but consider migrating to `grafana/alloy` for long-term support. Alloy is a drop-in replacement that supports the same Loki push API and Docker service discovery.
 
 **Config files**: `infra/logging/loki-config.yml`, `infra/logging/promtail-config.yml`
 
@@ -719,6 +775,29 @@ Grafana's datasources (Prometheus and Loki) are **auto-provisioned** on startup 
 
 ---
 
+### Blackbox Exporter — Endpoint Probing
+
+**What it is**: A Prometheus exporter that probes endpoints over HTTP, HTTPS, TCP, and ICMP and reports whether they are up, how long they took to respond, and TLS certificate details.
+
+**What it does here**:
+- Probes every service with an external subdomain (all apps, shared services, and platform UIs listed in `services.yaml`) over HTTPS every 15 seconds
+- Feeds results into Prometheus, which evaluates alert rules:
+  - **EndpointDown** — fires if a probe fails for 3+ minutes (severity: critical)
+  - **EndpointSlowResponse** — fires if response time exceeds 5 seconds for 5+ minutes (severity: warning)
+  - **SSLCertExpiringSoon** — fires if a TLS certificate expires within 14 days (severity: warning)
+- Results are viewable in Grafana via the Prometheus datasource (query `probe_success`, `probe_duration_seconds`, `probe_ssl_earliest_cert_expiry`)
+
+**Why it matters**: Container healthchecks only tell you a process is running. Blackbox probes tell you the service is actually reachable through the full Traefik routing chain — DNS, TLS, middleware, and application response. A container can be "healthy" but unreachable due to a misconfigured Traefik label or an expired cert.
+
+**Config files**:
+- `infra/monitoring/blackbox.yml` — probe modules (`http_2xx`, `http_health`, `tcp_connect`)
+- `infra/monitoring/prometheus.yml` — probe targets (all subdomains from `services.yaml`)
+- `infra/monitoring/alerts.yml` — `endpoint_health` alert group
+
+**Adding a new probe target**: When you add a new app to `services.yaml` with a subdomain, also add its URL to the `blackbox` job targets in `infra/monitoring/prometheus.yml`.
+
+---
+
 ### Verdaccio — Private npm Registry
 
 **What it is**: A lightweight private npm registry that also proxies requests to the public npm registry. It acts as a pass-through for public packages and a host for your private ones.
@@ -743,6 +822,22 @@ Verdaccio stores the package. Any npm install for `@adarshraj/*` packages goes t
 
 ---
 
+### Uptime Kuma — Status Page
+
+**What it is**: A self-hosted monitoring tool with a clean status page UI. Designed for non-engineers to see at a glance whether services are up.
+
+**What it does here**:
+- Monitors all platform services and apps via HTTP(S) probes
+- Provides a public status page at `https://status.homelab.local`
+- Sends notifications via Slack, email, Telegram, Discord, and 90+ other channels when a service goes down
+- Complements the blackbox exporter — Uptime Kuma provides a human-friendly status page, blackbox feeds Prometheus/Grafana for SRE use
+
+**How it differs from blackbox exporter**: Blackbox exporter feeds metrics into Prometheus for alerting rules and Grafana dashboards (engineer-facing). Uptime Kuma provides a standalone status page that anyone can read without Grafana access, plus its own notification system.
+
+**Config**: `infra/uptime-kuma/docker-compose.yml`. Data stored in a persistent SQLite volume. On first visit, create an admin account and add monitors.
+
+---
+
 ## 6. Repo Structure
 
 ```
@@ -755,14 +850,20 @@ platform/
 │   └── workflows/             ← reusable CI/CD workflows, called from all app repos
 │       ├── docker-build-push.yml   ← builds + pushes any Docker image to ghcr.io
 │       ├── quarkus-build.yml       ← Maven test + build + push for Kotlin/Quarkus backends
-│       └── deploy-portainer.yml    ← triggers Portainer webhook to redeploy a stack
+│       ├── deploy-portainer.yml    ← triggers Portainer webhook to redeploy a stack
+│       └── validate-platform.yml   ← PR checks: yamllint, shellcheck, compose config, services.yaml
 │
 ├── infra/                     ← one subdirectory per infrastructure service
 │   ├── traefik/
-│   │   ├── docker-compose.yml      ← runs Traefik container
-│   │   ├── traefik.yml             ← static config: entrypoints, Docker provider, TLS
+│   │   ├── docker-compose.yml      ← runs Traefik + CrowdSec containers
+│   │   ├── traefik.yml             ← static config: entrypoints, Docker provider, TLS, CrowdSec plugin
+│   │   ├── .env.example            ← template: CrowdSec bouncer API key
+│   │   ├── crowdsec/
+│   │   │   └── acquis.yaml         ← tells CrowdSec where to find Traefik access logs
 │   │   └── dynamic/
 │   │       ├── tls.yml             ← TLS cert paths (hot-reloaded)
+│   │       ├── crowdsec.yml        ← CrowdSec bouncer middleware config
+│   │       ├── forwardauth.yml    ← ForwardAuth SSO middleware + admin-auth chain
 │   │       └── certs/              ← wildcard.crt + wildcard.key (generated by mkcert)
 │   │
 │   ├── portainer/
@@ -778,9 +879,10 @@ platform/
 │   │   └── promtail-config.yml     ← Docker autodiscovery, label extraction
 │   │
 │   ├── monitoring/
-│   │   ├── docker-compose.yml      ← Prometheus + Grafana + cAdvisor + node-exporter + Alertmanager
-│   │   ├── prometheus.yml          ← scrape targets (cAdvisor, node-exporter, Traefik, app metrics)
-│   │   ├── alerts.yml              ← alerting rules (container down, high memory, etc.)
+│   │   ├── docker-compose.yml      ← Prometheus + Grafana + cAdvisor + node-exporter + Alertmanager + Blackbox
+│   │   ├── prometheus.yml          ← scrape targets (cAdvisor, node-exporter, Traefik, blackbox probes, app metrics)
+│   │   ├── alerts.yml              ← alerting rules (container down, endpoint down, high memory, SSL expiry, etc.)
+│   │   ├── blackbox.yml            ← blackbox exporter probe modules (http_2xx, tcp_connect)
 │   │   ├── alertmanager.yml        ← notification channels (Slack, email, webhook)
 │   │   ├── .env.example            ← template: Grafana admin password
 │   │   └── grafana/
@@ -792,20 +894,29 @@ platform/
 │   │   ├── docker-compose.yml      ← Verdaccio npm registry
 │   │   └── verdaccio-config.yml    ← scopes, auth, upstream proxy config
 │   │
+│   ├── uptime-kuma/
+│   │   └── docker-compose.yml      ← Uptime Kuma status page
+│   │
+│   ├── docker-proxy/
+│   │   └── docker-compose.yml      ← docker-socket-proxy: filtered Docker API for Traefik/Prometheus/Promtail
+│   │
 │   └── networks/
-│       └── create-networks.sh      ← creates platform_proxy + monitoring_internal (run once)
+│       └── create-networks.sh      ← creates platform_proxy + monitoring_internal + socket_proxy (run once)
 │
 ├── scripts/
 │   ├── bootstrap.sh           ← installs Docker, creates networks, starts all infra (run once)
 │   ├── deploy-app.sh          ← deploys/updates one app: fetches secrets + pulls + restarts
 │   ├── update-all.sh          ← runs deploy-app.sh for every app in ~/apps/
 │   ├── backup.sh              ← dumps all PostgreSQL DBs + backs up volumes, syncs offsite
+│   ├── verify-backup.sh       ← validates backup integrity (gzip, SQL, tar, checksums)
+│   ├── lint-platform.sh       ← local lint: yamllint + shellcheck + docker compose config
 │   └── logs.sh                ← tails logs for a named app stack
 │
 └── docs/
     ├── adding-new-app.md           ← complete checklist for onboarding any new app
     ├── local-dev.md                ← dev machine setup: DNS, TLS trust, Infisical CLI, npm registry
     ├── troubleshooting-new-apps.md ← common errors when adding an app and how to fix them
+    ├── platform-roadmap.md         ← future enhancements (SSO, cosign, Tempo, Uptime Kuma, etc.)
     └── decisions/                  ← Architecture Decision Records (why each tool was chosen)
         ├── 001-traefik-over-nginx.md
         ├── 002-infisical-over-vault.md
@@ -854,6 +965,9 @@ INFISICAL_AUTH_SECRET=paste_generated_value_here
 
 # Pick any strong password
 INFISICAL_DB_PASSWORD=choose_a_password
+
+# Generate with: openssl rand -base64 32
+INFISICAL_REDIS_PASSWORD=paste_generated_value_here
 ```
 
 **Grafana** (`infra/monitoring/.env`):
@@ -914,7 +1028,7 @@ This single wildcard entry covers all subdomains automatically. Every device usi
 This script:
 1. Checks Docker is installed
 2. Creates the shared Docker networks (`platform_proxy`, `monitoring_internal`)
-3. Starts Traefik, Portainer, Infisical, Loki, Promtail, Prometheus, Grafana, cAdvisor, node-exporter, Verdaccio
+3. Starts Docker socket proxy, Traefik, Portainer, Infisical, Loki, Promtail, Prometheus, Grafana, cAdvisor, node-exporter, Verdaccio
 4. Sets up a daily cron job for database backups at 2am
 
 ### Step 7 — Verify
@@ -1141,7 +1255,76 @@ Summary:
 
 ---
 
-## 11. Security Model
+## 11. App Security & Portability
+
+### Do my apps need security code?
+
+**No.** Security is handled entirely at the infrastructure level — your application code does not need to implement TLS, rate limiting, network isolation, secrets management, or log shipping. All of that is provided by this platform.
+
+What your app does:
+- **Serves HTTP** on an internal port (e.g. `3000` or `8080`) — Traefik handles TLS termination
+- **Reads environment variables** for secrets (e.g. `process.env.DATABASE_URL`) — Infisical injects them at deploy time
+- **Logs to stdout** (e.g. `console.log()`, `logger.info()`) — Promtail collects them automatically
+- **Responds to healthcheck endpoints** (e.g. `/` or `/q/health`) — Docker monitors container health
+
+What your app does **not** do:
+- No TLS certificate handling — Traefik does this
+- No rate limiting middleware — Traefik middleware handles this
+- No IP allowlisting logic — Traefik middleware handles this
+- No log file management — Promtail reads stdout
+- No secrets SDK or library — just standard environment variables
+- No auth middleware (optional) — ForwardAuth via Traefik can handle SSO
+
+### Where does platform config live?
+
+All platform-specific configuration is in **two files per app**, not inside your application code:
+
+1. **`docker-compose.yml`** — Traefik labels, security hardening (`cap_drop`, `security_opt`, `mem_limit`), network membership, healthcheck
+2. **`.github/workflows/deploy.yml`** — calls the platform's reusable CI/CD workflows
+
+Your application source code (routes, business logic, database queries, UI components) has zero platform awareness.
+
+### Are my apps tied to this platform?
+
+**No.** Your apps are standard Docker containers. The platform is a thin config layer on top.
+
+To run any app **without this platform**:
+
+| Platform feature | What to change | Effort |
+|---|---|---|
+| Traefik routing | Remove labels from compose, add `ports:` instead | 2 minutes |
+| Infisical secrets | Export to `.env` file: `infisical export --format=dotenv > .env`, use `--env-file .env` | 5 minutes |
+| Reusable CI workflows | Write your own GitHub Actions (or use any CI system) | 30 minutes |
+| Promtail logging | Nothing — app already logs to stdout, works with any log collector | 0 minutes |
+| Prometheus metrics | Nothing — remove optional labels if desired | 0 minutes |
+
+Your Dockerfile, application code, database schema, and npm packages are completely portable. The only platform-specific pieces are Docker Compose labels and the CI workflow reference — both trivially replaceable.
+
+### Can my app repos be public?
+
+**Yes.** App repos contain no secrets. Here's why:
+
+- **Secrets** are stored in Infisical, never in code or `.env` files (`.gitignore` blocks them)
+- **CI secrets** (`INFISICAL_CLIENT_ID`, `PORTAINER_WEBHOOK_URL`) are GitHub Secrets — referenced by name in workflow files, values never appear in code
+- **Traefik labels** contain only routing config (subdomain, port) — not sensitive
+- **Docker images** are pushed to GHCR, which supports both public and private visibility
+
+The platform repo itself can also be public — it contains infrastructure config, not secret values. The only things that must stay private are the actual secret values in Infisical and GitHub Secrets.
+
+### Summary
+
+```
+Your app code         → Zero security code. Log to stdout, read env vars, serve HTTP.
+docker-compose.yml    → Platform config lives here. Traefik labels + hardening. Portable.
+CI workflow           → Calls reusable workflows. Replaceable with any CI.
+Secrets               → In Infisical. Exportable to .env anytime.
+Lock-in               → None. Remove labels, add ports, done.
+Public repos          → Safe. Secrets never in code.
+```
+
+---
+
+## 12. Security Model
 
 ### Network Security
 
@@ -1149,6 +1332,8 @@ Summary:
 - All app containers use `expose:` (Docker internal only) instead of `ports:`
 - Containers without `traefik.enable=true` label are unreachable from outside — not just unauthenticated, no network path exists at all
 - Databases (PostgreSQL) are on isolated internal Docker networks, never reachable from outside
+- Prometheus metrics are served on a dedicated entrypoint (`:8082`) that is not published to the host — only reachable from within Docker networks
+- A dedicated `socket_proxy` network isolates the docker-socket-proxy from application containers — only Traefik, Prometheus, and Promtail are connected to it
 
 ### TLS
 
@@ -1157,17 +1342,49 @@ Summary:
 - Production: Let's Encrypt via Traefik ACME (auto-renews before expiry)
 - Traffic between Traefik and containers is plain HTTP inside Docker networks — acceptable because it never leaves the host machine
 
+### Container Hardening
+
+All infrastructure containers in `infra/` are hardened with the following defaults:
+
+- **`security_opt: [no-new-privileges:true]`** — prevents processes from gaining additional privileges via setuid/setgid binaries
+- **`cap_drop: [ALL]`** — drops all Linux capabilities. Only specific capabilities are added back where required (`NET_BIND_SERVICE` for Traefik, `DAC_READ_SEARCH` for Promtail)
+- **`mem_limit` / `cpus`** — resource limits on every container prevent a single runaway service from OOM-killing the host
+- **`read_only: true`** — root filesystem is read-only on containers that don't need to write (Traefik, node-exporter, alertmanager, Loki, Promtail, Redis), with `tmpfs` mounts for `/tmp` where needed
+- **Non-root users** — Prometheus, node-exporter, alertmanager, Loki, and Redis run as non-root (`user:` directive)
+- **Healthchecks** — every container has a healthcheck so Docker can detect and report unhealthy services, and `depends_on: condition: service_healthy` works correctly
+- **Docker socket proxy** — Traefik, Prometheus, and Promtail do not mount the Docker socket directly. They connect to a [docker-socket-proxy](https://github.com/Tecnativa/docker-socket-proxy) (`infra/docker-proxy`) that exposes only read-only container, network, and event endpoints. Only Portainer retains direct socket access (required for container management).
+
+When adding new apps, follow the same patterns. See [docs/adding-new-app.md](docs/adding-new-app.md) for examples with hardening included.
+
+### Automated Threat Detection (CrowdSec)
+
+CrowdSec runs alongside Traefik and provides automated protection against:
+- **Brute force attacks** — repeated failed requests to login endpoints
+- **Vulnerability scanning** — automated bots probing for known CVEs
+- **Aggressive crawling** — excessive request rates from single IPs
+- **Community-flagged IPs** — shared threat intelligence from the CrowdSec network
+
+The CrowdSec bouncer plugin is applied at the Traefik `websecure` entrypoint, meaning all HTTPS traffic is filtered before reaching any app. Blocked IPs receive a 403 response. Decisions are synced every 15 seconds in stream mode (no per-request latency).
+
+Management commands: `docker exec crowdsec cscli decisions list` (view bans), `cscli alerts list` (view threats), `cscli hub update && cscli hub upgrade` (update detection rules). See [RUNBOOK.md — CrowdSec](RUNBOOK.md#crowdsec--setup--management) for the full reference.
+
 ### Access Control
 
-Three layers of protection are available via Traefik middlewares:
+Four layers of protection are available via Traefik middlewares:
 
-**IP allowlist** — restricts a route to specific IP ranges. Applied to all internal tools (Portainer, Grafana, Infisical) by default:
+**IP allowlist** — restricts a route to specific IP ranges. Part of the `admin-auth@file` chain applied to all internal tools:
 ```yaml
-- "traefik.http.routers.portainer.middlewares=internal-only@docker"
 # Defined in infra/traefik/docker-compose.yml:
 # sourcerange=127.0.0.1/32,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
 ```
 > **Note**: If you access the server via Tailscale or a CGNAT carrier network, you may also need to add `100.64.0.0/10` to the `sourcerange`. Admin UIs will be silently blocked otherwise.
+
+**ForwardAuth SSO** — all admin UIs (Portainer, Grafana, Infisical, Verdaccio) require authentication via your auth-service. Traefik calls `GET /auth/verify` on auth-service before forwarding requests. The `platform_session` cookie (set on login at `auth.homelab.local`) is checked automatically. The `admin-auth@file` middleware chains IP allowlist + ForwardAuth:
+```yaml
+# Applied to admin UIs:
+- "traefik.http.routers.portainer.middlewares=admin-auth@file"
+# Defined in infra/traefik/dynamic/forwardauth.yml
+```
 
 **Rate limiting** — limits requests per second per IP. Apply to any public-facing app:
 ```yaml
@@ -1180,17 +1397,43 @@ Three layers of protection are available via Traefik middlewares:
 - "traefik.http.routers.myapp.middlewares=app-auth"
 ```
 
+**CrowdSec bouncer** — automatically blocks IPs flagged by CrowdSec's threat detection engine. Applied globally at the `websecure` entrypoint — all HTTPS traffic is filtered without per-app configuration. See [CrowdSec — Threat Detection & IP Blocking](#crowdsec--threat-detection--ip-blocking) for details.
+
 ### Secrets Security
 
 - No `.env` files on disk (they get migrated to Infisical)
-- Secrets are never stored in git
-- The deploy script fetches secrets into a temp file, passes it to docker compose, then immediately deletes it
+- Secrets are never stored in git — `.gitignore` blocks `.env*` files, TLS certs, and backup artifacts
+- The deploy script runs with `umask 077` and uses `mktemp` for temp files with a `trap` to clean up on exit (including abnormal termination)
 - If Infisical is unreachable, `deploy-app.sh` **aborts** rather than deploying with an empty env. Pass `--allow-empty-secrets` only when you have confirmed no secrets are needed
 - Infisical encrypts all secrets at rest using the `INFISICAL_ENCRYPTION_KEY` you generate
+- Infisical's Redis cache requires authentication via `INFISICAL_REDIS_PASSWORD`
+
+### CI/CD Security
+
+- All third-party GitHub Actions in this repo are pinned to full commit SHAs (not mutable tags) to prevent supply chain attacks. Callers that reference these reusable workflows via `@main` use a moving ref by design — pin to a specific commit or tag if stricter control is needed
+- Workflow inputs and secrets are passed via `env:` variables, never interpolated directly into `run:` blocks
+- Jobs that push images or trigger deploys use `environment: production` for deployment protection rules
+- The deploy-portainer workflow runs with `permissions: {}` (zero GitHub API access)
+- Built images are scanned with [Trivy](https://github.com/aquasecurity/trivy) using the image digest from the build step. **CRITICAL** vulnerabilities **fail the build**. HIGH vulnerabilities are uploaded as SARIF to the GitHub Security tab for visibility but do not block the pipeline. To make HIGH also fail, remove the separate advisory scan step and change the CRITICAL step's `severity` to `CRITICAL,HIGH`
+- Infisical slug validation compares env vars before and after the secrets action runs. If no new variables were exported, a `::warning` is emitted — this catches silent slug mismatches where the action succeeds but returns nothing. For apps that genuinely have no build-time secrets, omit `INFISICAL_CLIENT_ID` / `INFISICAL_CLIENT_SECRET` from the calling workflow to skip the check entirely
+
+### Accepted Risks & Mitigations
+
+The following are known architectural tradeoffs inherent to this stack. They are accepted, not overlooked.
+
+| Risk | Why it exists | Mitigation |
+|---|---|---|
+| **Docker socket access** (Portainer only) | Portainer requires read-write Docker socket access for container management — this is host-equivalent if compromised. Traefik, Prometheus, and Promtail use a [docker-socket-proxy](https://github.com/Tecnativa/docker-socket-proxy) (`infra/docker-proxy`) that only exposes read-only container/network/events endpoints. | IP-restricted admin UI, regular patching, host-level firewall. Limit who can SSH into the host. |
+| **cAdvisor `privileged: true`** | Required to read cgroup and device metrics from the host kernel. | Runs on an isolated internal network, not exposed via Traefik. Resource-limited to 512MB / 0.5 CPU. |
+| **node-exporter `pid: host`** | Required to report accurate host-level process metrics. | Runs as non-root (`65534`), read-only filesystem, all capabilities dropped. |
+| **Portainer webhook URL** | Anyone with the URL can trigger a redeploy (DoS/churn). No built-in second factor. | Store as a GitHub environment secret (not repo secret). Rotate immediately on suspected leak. Environment protection rules add a reviewer gate. |
+| **`curl \| sh` in bootstrap.sh** | Standard Docker install method. Trusts `get.docker.com` over HTTPS. | Acceptable for homelab. For stricter environments, use distro packages (`apt install docker-ce`) or verify the script checksum before execution. |
+| **`--allow-empty-secrets` flag** | Needed for services that genuinely have no secrets (e.g. static frontends). | Disabled by default — deploy aborts if secrets can't be fetched. Flag requires explicit opt-in per invocation. |
+| **App images tagged `latest`** | Convenient for auto-deploy via Portainer webhooks. | Every image is also tagged with `sha-<commit>` for deterministic rollback. Pin to SHA tags in production compose files for stricter control. |
 
 ---
 
-## 12. Backup & Recovery
+## 13. Backup & Recovery
 
 ### What Gets Backed Up
 
@@ -1203,7 +1446,7 @@ Backups are stored in `/var/backups/platform/YYYY-MM-DD_HHMMSS/` and kept for 7 
 
 ### Syncing Offsite (Optional but Recommended)
 
-If you have `rclone` configured with a remote named `backup:`, the script automatically syncs to it:
+If you have `rclone` configured with a remote named `backup:`, the script automatically copies new backups to it:
 ```bash
 # Configure rclone to point to any S3-compatible storage (Cloudflare R2, Backblaze B2, MinIO, etc.)
 rclone config
@@ -1233,11 +1476,21 @@ gunzip -c /var/backups/platform/2024-01-15_020000/bookshelf-db-bookshelf.sql.gz 
 
 For full volume restore procedures (Infisical, Loki) and a quarterly restore drill checklist, see [RUNBOOK.md — Restore](RUNBOOK.md#restore).
 
-> **Backup integrity**: The backup script stops Loki briefly before archiving its data volume to avoid inconsistent snapshots. The script exits with a non-zero code if any backup step fails, so cron failure emails will fire.
+> **Backup integrity**: The backup script stops Loki briefly before archiving its data volume to avoid inconsistent snapshots. A `trap` ensures Loki is restarted even if the script is interrupted or fails. Backup files are created with restrictive permissions (`umask 077`). Remote sync uses `rclone copy` (not `sync`) so that accidental local deletions do not propagate to the remote. The script exits with a non-zero code if any backup step fails, so cron failure emails will fire.
+
+### Backup Verification
+
+`scripts/verify-backup.sh` runs automatically at 2:30am daily (30 minutes after the backup) and validates:
+- **PostgreSQL dumps** — gzip integrity + checks for valid `pg_dump` SQL markers
+- **Tar archives** — lists contents without extracting to verify archive integrity
+- **File sizes** — flags suspiciously small files (< 100 bytes) that may indicate silent failures
+- **Checksum manifest** — generates `checksums.sha256` in the backup directory for tamper detection
+
+Run manually: `./scripts/verify-backup.sh`. Check logs: `tail -50 /var/log/platform-backup-verify.log`.
 
 ---
 
-## 13. Troubleshooting
+## 14. Troubleshooting
 
 ### A service URL returns "404 page not found" from Traefik
 
@@ -1302,3 +1555,13 @@ docker system df -v | grep loki
 # Change: retention_period: 30d  →  retention_period: 7d
 # Then restart: cd infra/logging && docker compose restart loki
 ```
+
+---
+
+## 15. Platform Roadmap
+
+See [docs/platform-roadmap.md](docs/platform-roadmap.md) for planned enhancements including:
+- Cosign image signing in CI
+- Grafana Tempo distributed tracing
+- services.yaml scaffolding generator
+- Self-hosted GitHub Actions runners

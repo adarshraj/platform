@@ -1,0 +1,35 @@
+services:
+  uptime-kuma:
+    image: louislam/uptime-kuma:1.23.16
+    container_name: uptime-kuma
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 512m
+    cpus: 0.5
+    volumes:
+      - uptime_kuma_data:/app/data
+    networks:
+      - platform_proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.uptime-kuma.rule=Host(`status.homelab.local`)"
+      - "traefik.http.routers.uptime-kuma.entrypoints=websecure"
+      - "traefik.http.routers.uptime-kuma.tls=true"
+      - "traefik.http.services.uptime-kuma.loadbalancer.server.port=3001"
+      # Public status page — no auth required. Admin login is built into Uptime Kuma.
+      - "traefik.http.routers.uptime-kuma.middlewares=secure-headers@docker"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"const http = require('http'); const options = { host: 'localhost', port: 3001, path: '/api/entry', timeout: 2000 }; const req = http.request(options, (res) => { process.exit(res.statusCode === 200 ? 0 : 1); }); req.on('error', () => process.exit(1)); req.end();\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  uptime_kuma_data:
+
+networks:
+  platform_proxy:
+    external: true

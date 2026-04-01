@@ -1,0 +1,44 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "docker:enableMajor"],
+  "schedule": ["before 6am on Monday"],
+  "timezone": "America/New_York",
+  "labels": ["dependencies"],
+  "docker-compose": {
+    "fileMatch": ["infra/.+/docker-compose\\.yml$"]
+  },
+  "packageRules": [
+    {
+      "description": "Group all monitoring stack updates",
+      "matchFileNames": ["infra/monitoring/**"],
+      "groupName": "monitoring stack"
+    },
+    {
+      "description": "Group all logging stack updates",
+      "matchFileNames": ["infra/logging/**"],
+      "groupName": "logging stack"
+    },
+    {
+      "description": "Group Infisical and its dependencies",
+      "matchFileNames": ["infra/secrets/**"],
+      "groupName": "secrets stack"
+    },
+    {
+      "description": "Pin digest for reproducibility",
+      "matchDatasources": ["docker"],
+      "pinDigests": true
+    },
+    {
+      "description": "Automerge patch updates for stable infra images",
+      "matchDatasources": ["docker"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true
+    },
+    {
+      "description": "Don't bump Postgres major version automatically",
+      "matchPackageNames": ["postgres"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    }
+  ]
+}

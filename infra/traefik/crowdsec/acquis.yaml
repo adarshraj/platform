@@ -1,0 +1,7 @@
+# CrowdSec acquisition config — tells CrowdSec where to find logs to parse.
+
+# Traefik access logs (shared via traefik_logs volume)
+filenames:
+  - /var/log/traefik/*.log
+labels:
+  type: traefik
