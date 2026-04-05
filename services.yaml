@@ -49,6 +49,20 @@ platform:
     type: platform
     stack_dir: infra/logging
 
+  - name: tempo
+    subdomain: ~              # internal only — queried by Grafana
+    ports: [3200, 4317, 4318]
+    repo: adarshraj/platform
+    type: platform
+    stack_dir: infra/tracing
+
+  - name: otel-collector
+    subdomain: ~              # internal only — OTLP receiver for all services
+    ports: [4317, 4318, 13133]
+    repo: adarshraj/platform
+    type: platform
+    stack_dir: infra/tracing
+
   - name: infisical
     subdomain: secrets.homelab.local
     ports: [8080]

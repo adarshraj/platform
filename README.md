@@ -18,6 +18,7 @@ This repo does **not** contain application code — it contains the platform lay
    - [Infisical — Secrets Management](#infisical--secrets-management)
    - [Loki + Promtail — Centralized Logging](#loki--promtail--centralized-logging)
    - [Prometheus + Grafana — Metrics & Alerting](#prometheus--grafana--metrics--alerting)
+   - [Tempo + OpenTelemetry Collector — Distributed Tracing](#tempo--opentelemetry-collector--distributed-tracing)
    - [Blackbox Exporter — Endpoint Probing](#blackbox-exporter--endpoint-probing)
    - [Verdaccio — Private npm Registry](#verdaccio--private-npm-registry)
    - [Uptime Kuma — Status Page](#uptime-kuma--status-page)
@@ -772,6 +773,52 @@ app.get('/metrics', async (req, res) => {
 **Config files**: `infra/monitoring/prometheus.yml`, `infra/monitoring/alerts.yml`, `infra/monitoring/alertmanager.yml`, `infra/monitoring/grafana/provisioning/`
 
 Grafana's datasources (Prometheus and Loki) are **auto-provisioned** on startup from `grafana/provisioning/datasources/datasources.yml` — you don't need to configure them manually in the UI.
+
+---
+
+### Tempo + OpenTelemetry Collector — Distributed Tracing
+
+**What they are**:
+- **OpenTelemetry (OTEL)**: an industry-standard way to describe what a request *did* as it moves through your stack. Each service emits a **span** (an operation with a start time, end time, name, and attributes) for every request it handles and every outbound call it makes. Spans sharing the same **trace ID** — propagated via the W3C `traceparent` HTTP header — are stitched into a single *trace*.
+- **OpenTelemetry Collector**: a single entry point that every service pushes its spans to (OTLP over gRPC on `4317` or HTTP on `4318`). The collector batches, samples, and forwards — services don't need to know where the trace backend lives.
+- **Grafana Tempo**: the trace backend. Stores spans, serves trace queries to Grafana.
+
+**Why this matters**: without tracing, a slow or broken request that touches three services is a three-way log hunt. With tracing, you see a waterfall — which service took how long, which call failed, which external API was the bottleneck. Example:
+
+```
+Trace abc123def456... (total 1.4s)
+├─ auth-service  /verify              12ms
+├─ ai-wrap       POST /ai/invoke    1380ms
+│  └─ api.openai.com call           1350ms
+└─ doc-bucket    GET /documents/42    95ms
+```
+
+**What you get**:
+- One **Tempo datasource** in Grafana — explore traces by ID or by service, time range, and operation name.
+- **Loki ↔ Tempo correlation** — every log line in Loki carries the trace ID (via the `trace=<id>/<id>` field in the log format), and Grafana's log view turns the ID into a clickable link that jumps to the trace. From a span in Tempo, you can jump back to logs for that request.
+- A **service map** — Grafana auto-generates a graph of which services call which, derived from span data.
+
+**What you configure in each app**:
+
+1. Instrument the service. Quarkus: add the `quarkus-opentelemetry` dependency and set `quarkus.otel.enabled=true`. FastAPI: add `opentelemetry-instrumentation-fastapi` + `opentelemetry-exporter-otlp` and instrument the app at startup. Node/SvelteKit: `@opentelemetry/sdk-node` + `@opentelemetry/auto-instrumentations-node`.
+2. Tell the service where the collector is. Every OTEL SDK reads `OTEL_EXPORTER_OTLP_ENDPOINT`. Set it in your service's `docker-compose.yml` to `http://otel-collector:4317`.
+3. Include trace ID in your log format so Loki → Tempo correlation works. For Quarkus add `[trace=%X{traceId:-}/%X{spanId:-}]` to `quarkus.log.console.format`; the extension populates the MDC automatically. For Python, `opentelemetry-instrumentation-logging` injects `%(otelTraceID)s` / `%(otelSpanID)s` into every log record.
+
+Services already doing this: `ai-wrap`, `auth-service`, `docbucket`, `paddle-ocr-wrap`.
+
+**To enable a new service**:
+```yaml
+# in the service's docker-compose.yml
+environment:
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+  OTEL_SERVICE_NAME: my-service   # shows up as the service name in Grafana
+networks:
+  - platform_proxy  # required to reach otel-collector
+```
+
+**Retention**: Tempo is configured for 7 days of traces on local disk. Raise `block_retention` in `infra/tracing/tempo.yml` or swap the storage backend to S3/Garage for longer retention.
+
+**Sampling**: currently 100% (all spans kept). Add a `tail_sampling` processor to the collector config if volume becomes a problem.
 
 ---
 

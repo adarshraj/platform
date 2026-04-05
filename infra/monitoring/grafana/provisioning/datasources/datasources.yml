@@ -5,6 +5,7 @@ datasources:
     type: prometheus
     access: proxy
     url: http://prometheus:9090
+    uid: prometheus
     isDefault: true
     editable: false
 
@@ -12,4 +13,30 @@ datasources:
     type: loki
     access: proxy
     url: http://loki:3100
+    uid: loki
     editable: false
+    jsonData:
+      # Trace correlation: click a traceId in a log line to jump to the trace in Tempo.
+      derivedFields:
+        - name: TraceID
+          matcherRegex: "trace=([a-f0-9]+)/"
+          url: "$${__value.raw}"
+          datasourceUid: tempo
+
+  - name: Tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
+    uid: tempo
+    editable: false
+    jsonData:
+      # Trace → logs correlation: from a span, jump to logs carrying the same trace ID.
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: "-5m"
+        spanEndTimeShift: "5m"
+        filterByTraceID: true
+      serviceMap:
+        datasourceUid: prometheus
+      nodeGraph:
+        enabled: true

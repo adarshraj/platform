@@ -1,0 +1,67 @@
+services:
+  # ── OpenTelemetry Collector ─────────────────────────────────────────────────
+  # Single entry point for traces from every service. Services push here via OTLP
+  # (gRPC 4317 or HTTP 4318). The collector batches and forwards to Tempo.
+  # Later you can add metrics/logs pipelines to fan out to Prometheus/Loki.
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.112.0
+    container_name: otel-collector
+    restart: unless-stopped
+    user: "10001:10001"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 512m
+    cpus: 0.5
+    command: ["--config=/etc/otel-collector.yml"]
+    volumes:
+      - ./otel-collector.yml:/etc/otel-collector.yml:ro
+    # Services inside monitoring_internal reach this at otel-collector:4317/4318.
+    # Apps on platform_proxy network also need to reach it, so join both.
+    networks:
+      - monitoring_internal
+      - platform_proxy
+    depends_on:
+      - tempo
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:13133/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ── Grafana Tempo — trace storage ───────────────────────────────────────────
+  # Receives spans from otel-collector, stores them, serves queries to Grafana.
+  # Internal only — no external route; Grafana reaches it via monitoring_internal.
+  tempo:
+    image: grafana/tempo:2.6.1
+    container_name: tempo
+    restart: unless-stopped
+    user: "10001:10001"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 1g
+    cpus: 1.0
+    command: ["-config.file=/etc/tempo.yml"]
+    volumes:
+      - ./tempo.yml:/etc/tempo.yml:ro
+      - tempo_data:/var/tempo
+    networks:
+      - monitoring_internal
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3200/ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  tempo_data:
+
+networks:
+  monitoring_internal:
+    external: true
+  platform_proxy:
+    external: true

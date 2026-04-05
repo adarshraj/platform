@@ -1,0 +1,40 @@
+# OpenTelemetry Collector config.
+# Receives OTLP traces from services and forwards to Tempo.
+# Extend later with metrics / logs pipelines as needed.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    # Buffer spans briefly before sending — reduces network overhead.
+    timeout: 5s
+    send_batch_size: 512
+  memory_limiter:
+    # Drop data if the collector runs hot, rather than OOM'ing.
+    check_interval: 2s
+    limit_percentage: 80
+    spike_limit_percentage: 20
+
+exporters:
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp/tempo]
