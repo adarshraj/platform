@@ -22,6 +22,7 @@ This repo does **not** contain application code — it contains the platform lay
    - [Blackbox Exporter — Endpoint Probing](#blackbox-exporter--endpoint-probing)
    - [Verdaccio — Private npm Registry](#verdaccio--private-npm-registry)
    - [Uptime Kuma — Status Page](#uptime-kuma--status-page)
+   - [Redis — Shared Cache](#redis--shared-cache)
 6. [Repo Structure](#6-repo-structure)
 7. [Quick Start — Homelab](#7-quick-start--homelab)
 8. [Quick Start — VPS (Production)](#8-quick-start--vps-production)
@@ -91,6 +92,7 @@ Your Browser or Device
    │  CrowdSec    — detects and blocks malicious IPs automatically  │
    │  Uptime Kuma — public status page for service availability    │
    │  Blackbox    — probes all endpoints, alerts on downtime        │
+   │  Redis       — shared cache for all apps (opt-in per app)      │
    │  Docker Proxy — filtered socket proxy for safe container discovery│
    └────────────────────────────────────────────────────────────────┘
 ```
@@ -885,6 +887,32 @@ Verdaccio stores the package. Any npm install for `@adarshraj/*` packages goes t
 
 ---
 
+### Redis — Shared Cache
+
+**What it is**: An in-memory key-value store used for application-level caching, session storage, and rate limiting.
+
+**What it does here**:
+- Provides a single shared Redis instance on `platform_proxy` that any app can connect to
+- Apps opt in by adding a Redis client library and cache logic — apps that don't use it are completely unaffected
+- If Redis is down, apps should fall back gracefully (skip cache, query the database directly)
+- Uses LRU eviction (128MB max) — when memory is full, the least recently used keys are evicted automatically
+- Password-protected and persists data to disk (append-only file) so cached data survives restarts
+
+**How apps connect**: Any container on `platform_proxy` can reach Redis at `redis:6379`. Each language has a client library:
+
+| Language / Framework | Library | Connection config |
+|---|---|---|
+| Kotlin / Spring Boot | `spring-boot-starter-data-redis` | `spring.data.redis.host=redis` in `application.yml` |
+| Kotlin / Quarkus | `quarkus-redis-client` | `quarkus.redis.hosts=redis://redis:6379` in `application.properties` |
+| Node.js / SvelteKit | `ioredis` or `redis` | `new Redis({ host: 'redis', port: 6379, password: process.env.REDIS_PASSWORD })` |
+| Python | `redis-py` | `redis.Redis(host='redis', port=6379, password=os.environ['REDIS_PASSWORD'])` |
+
+**Important**: Caching is opt-in per app. No app code changes are required to deploy Redis — it runs as a standalone service. Apps that don't use it simply ignore it. See [docs/redis-caching.md](docs/redis-caching.md) for a step-by-step guide to enabling caching in each framework.
+
+**Config**: `infra/redis/docker-compose.yml`. Set the password in `infra/redis/.env` (see `.env.example`).
+
+---
+
 ## 6. Repo Structure
 
 ```
@@ -944,6 +972,10 @@ platform/
 │   ├── uptime-kuma/
 │   │   └── docker-compose.yml      ← Uptime Kuma status page
 │   │
+│   ├── redis/
+│   │   ├── docker-compose.yml      ← shared Redis cache (opt-in per app)
+│   │   └── .env.example            ← template: Redis password
+│   │
 │   ├── docker-proxy/
 │   │   └── docker-compose.yml      ← docker-socket-proxy: filtered Docker API for Traefik/Prometheus/Promtail
 │   │
@@ -960,6 +992,7 @@ platform/
 │   └── logs.sh                ← tails logs for a named app stack
 │
 └── docs/
+    ├── redis-caching.md               ← step-by-step guide to enabling Redis caching in each framework
     ├── adding-new-app.md           ← complete checklist for onboarding any new app
     ├── local-dev.md                ← dev machine setup: DNS, TLS trust, Infisical CLI, npm registry
     ├── troubleshooting-new-apps.md ← common errors when adding an app and how to fix them

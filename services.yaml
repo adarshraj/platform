@@ -91,6 +91,13 @@ platform:
     type: platform
     stack_dir: infra/uptime-kuma
 
+  - name: redis
+    subdomain: ~              # internal only, no external route
+    ports: [6379]
+    repo: adarshraj/platform
+    type: platform
+    stack_dir: infra/redis
+
   - name: docker-proxy
     subdomain: ~              # internal only, no external route
     ports: [2375]
