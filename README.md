@@ -23,6 +23,7 @@ This repo does **not** contain application code — it contains the platform lay
    - [Verdaccio — Private npm Registry](#verdaccio--private-npm-registry)
    - [Uptime Kuma — Status Page](#uptime-kuma--status-page)
    - [Redis — Shared Cache](#redis--shared-cache)
+   - [Garage — S3-Compatible Object Storage](#garage--s3-compatible-object-storage)
 6. [Repo Structure](#6-repo-structure)
 7. [Quick Start — Homelab](#7-quick-start--homelab)
 8. [Quick Start — VPS (Production)](#8-quick-start--vps-production)
@@ -93,6 +94,7 @@ Your Browser or Device
    │  Uptime Kuma — public status page for service availability    │
    │  Blackbox    — probes all endpoints, alerts on downtime        │
    │  Redis       — shared cache for all apps (opt-in per app)      │
+   │  Garage      — S3-compatible object storage (backend for DocBucket)│
    │  Docker Proxy — filtered socket proxy for safe container discovery│
    └────────────────────────────────────────────────────────────────┘
 ```
@@ -913,6 +915,52 @@ Verdaccio stores the package. Any npm install for `@adarshraj/*` packages goes t
 
 ---
 
+### Garage — S3-Compatible Object Storage
+
+**What it is**: A lightweight, self-hosted, S3-compatible object storage service built in Rust. Think of it as a self-hosted AWS S3.
+
+**What it does here**:
+- Provides the storage backend for **DocBucket** (which is provider-neutral and has no default implementation)
+- Any app can also use it directly via standard S3 SDKs (`aws-sdk`, `boto3`, `@aws-sdk/client-s3`, etc.)
+- Exposes an S3-compatible API at `s3.homelab.local` — same API as AWS S3, so code is portable
+- Supports buckets, versioning, presigned URLs, and multipart uploads
+- Exposes Prometheus metrics at port `3903/metrics` for monitoring
+
+**How apps connect**: Use any S3 SDK with the endpoint pointed at Garage:
+
+```
+Endpoint:         https://s3.homelab.local  (or http://garage:3900 from Docker network)
+Region:           garage
+Access Key:       (created via garage CLI — see post-setup below)
+Secret Key:       (created via garage CLI — see post-setup below)
+```
+
+**Post-setup** (after first boot):
+
+```bash
+# 1. Get the node ID
+docker exec garage garage node id
+
+# 2. Assign the node to a zone with capacity
+docker exec garage garage layout assign -z dc1 -c 10G <NODE_ID>
+
+# 3. Apply the layout
+docker exec garage garage layout apply --version 1
+
+# 4. Create an API key for DocBucket
+docker exec garage garage key create docbucket-key
+
+# 5. Create a bucket
+docker exec garage garage bucket create documents
+docker exec garage garage bucket allow --read --write --key docbucket-key documents
+```
+
+Store the access key and secret key in Infisical for DocBucket and any other apps that need S3 access.
+
+**Config**: `infra/garage/docker-compose.yml` and `infra/garage/garage.toml`. Set secrets in `infra/garage/.env` (see `.env.example`).
+
+---
+
 ## 6. Repo Structure
 
 ```
@@ -975,6 +1023,11 @@ platform/
 │   ├── redis/
 │   │   ├── docker-compose.yml      ← shared Redis cache (opt-in per app)
 │   │   └── .env.example            ← template: Redis password
+│   │
+│   ├── garage/
+│   │   ├── docker-compose.yml      ← Garage S3-compatible object storage
+│   │   ├── garage.toml             ← single-node config: S3 API, admin, RPC
+│   │   └── .env.example            ← template: RPC secret, admin/metrics tokens
 │   │
 │   ├── docker-proxy/
 │   │   └── docker-compose.yml      ← docker-socket-proxy: filtered Docker API for Traefik/Prometheus/Promtail

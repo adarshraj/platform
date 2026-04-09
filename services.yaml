@@ -98,6 +98,13 @@ platform:
     type: platform
     stack_dir: infra/redis
 
+  - name: garage
+    subdomain: s3.homelab.local
+    ports: [3900, 3901, 3903]
+    repo: adarshraj/platform
+    type: platform
+    stack_dir: infra/garage
+
   - name: docker-proxy
     subdomain: ~              # internal only, no external route
     ports: [2375]

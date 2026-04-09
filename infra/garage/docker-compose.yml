@@ -1,0 +1,48 @@
+services:
+  garage:
+    image: dxflrs/garage:v2.2.0
+    container_name: garage
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 512m
+    cpus: 1.0
+    environment:
+      RUST_LOG: info
+    volumes:
+      - ./garage.toml:/etc/garage.toml:ro
+      - garage_meta:/var/lib/garage/meta
+      - garage_data:/var/lib/garage/data
+    expose:
+      - "3900"    # S3 API
+      - "3901"    # RPC
+      - "3903"    # Admin / metrics
+    networks:
+      - platform_proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.garage.rule=Host(`s3.homelab.local`)"
+      - "traefik.http.routers.garage.entrypoints=websecure"
+      - "traefik.http.routers.garage.tls=true"
+      - "traefik.http.services.garage.loadbalancer.server.port=3900"
+      - "traefik.http.routers.garage.middlewares=internal-only@docker"
+      # Prometheus metrics
+      - "prometheus.scrape=true"
+      - "prometheus.port=3903"
+      - "prometheus.path=/metrics"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3903/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  garage_meta:
+  garage_data:
+
+networks:
+  platform_proxy:
+    external: true

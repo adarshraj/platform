@@ -11,6 +11,8 @@ Enhancements identified for the platform, grouped by priority. Items marked **do
 - **CrowdSec + Traefik bouncer** — Automated threat detection and IP blocking. CrowdSec parses Traefik access logs + community threat feeds. Bouncer plugin blocks flagged IPs at the entrypoint level (all HTTPS traffic). Config: `infra/traefik/crowdsec/`, `infra/traefik/dynamic/crowdsec.yml`. Setup: copy `.env.example` to `.env`, run `docker exec crowdsec cscli bouncers add traefik-bouncer`, paste key.
 - **ForwardAuth SSO for admin UIs** — Unified login across Portainer, Grafana, Infisical, and Verdaccio using the existing auth-service. Added `/auth/verify` endpoint + `platform_session` cookie to auth-service. Traefik ForwardAuth middleware (`admin-auth@file`) chains IP allowlist + SSO. Config: `infra/traefik/dynamic/forwardauth.yml`. Auth-service needs `AUTH_SESSION_COOKIE_DOMAIN=.homelab.local` env var.
 - **Uptime Kuma** — Public status page at `status.homelab.local`. Shows service availability for non-engineers. Config: `infra/uptime-kuma/docker-compose.yml`. Built-in admin login (set on first visit).
+- **Redis** — Shared cache service for all platform apps (opt-in per app). 128MB LRU, password-protected, append-only persistence. Config: `infra/redis/docker-compose.yml`. Per-app integration guide: `docs/redis-caching.md`.
+- **Garage (S3 Object Storage)** — Self-hosted S3-compatible storage via Garage. Primary use case: storage backend for DocBucket. Accessible at `s3.homelab.local` or `garage:3900` from Docker network. Config: `infra/garage/docker-compose.yml` + `garage.toml`.
 
 ### Signed images (cosign)
 **Priority: Medium | Effort: Low (CI) / Medium (deploy verify)**
@@ -89,8 +91,8 @@ Consolidate remote admin access patterns:
 ### Self-Hosted GitHub Actions Runners
 Useful at larger scale or when CI needs access to internal services (Verdaccio, Infisical). Use `myoung34/github-runner` or official `actions/runner`. Switch workflows to `runs-on: self-hosted`.
 
-### MinIO / Garage (Object Storage)
-S3-compatible object storage for apps that outgrow local volumes. Single container deployment. Only needed if apps require shared blob storage.
+### ~~Garage (S3-Compatible Object Storage)~~ → Done
+Moved to Done. Implemented in `infra/garage/`.
 
 ### Woodpecker / Drone (LAN-only CI)
 Redundant with GitHub Actions unless air-gapped CI is required. Defer indefinitely.
