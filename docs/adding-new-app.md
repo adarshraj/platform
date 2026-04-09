@@ -13,12 +13,13 @@ Follow the steps in order — each step depends on the previous one.
 2. [Register in services.yaml](#2-register-in-servicesyaml)
 3. [Configure docker-compose.yml for Traefik](#3-configure-docker-composeyml-for-traefik)
 4. [Configure Logging](#4-configure-logging)
-5. [Configure Metrics (Optional)](#5-configure-metrics-optional)
-6. [Migrate Secrets to Infisical](#6-migrate-secrets-to-infisical)
-7. [Set Up GitHub Actions CI/CD](#7-set-up-github-actions-cicd)
-8. [Register Stack in Portainer](#8-register-stack-in-portainer)
-9. [Verify Everything Works](#9-verify-everything-works)
-10. [For Shared Libraries (npm)](#10-for-shared-libraries-npm)
+5. [Configure Database Migrations](#5-configure-database-migrations)
+6. [Configure Metrics (Optional)](#6-configure-metrics-optional)
+7. [Migrate Secrets to Infisical](#7-migrate-secrets-to-infisical)
+8. [Set Up GitHub Actions CI/CD](#8-set-up-github-actions-cicd)
+9. [Register Stack in Portainer](#9-register-stack-in-portainer)
+10. [Verify Everything Works](#10-verify-everything-works)
+11. [For Shared Libraries (npm)](#11-for-shared-libraries-npm)
 
 ---
 
@@ -436,7 +437,88 @@ Full logging guide with all examples: see **"Configuring Your Apps for Logging"*
 
 ---
 
-## 5. Configure Metrics (Optional)
+## 5. Configure Database Migrations
+
+If your app uses a database, you need a strategy for running schema migrations safely during deployments.
+
+### Rule: migrations run before the app starts, never in parallel
+
+When the new container starts, migrations must complete before the app begins serving traffic. This prevents the app from running against an outdated schema.
+
+### Quarkus (Flyway)
+
+Flyway is the standard for Quarkus. It runs migrations automatically at startup before the app serves requests.
+
+Add to `pom.xml`:
+```xml
+<dependency>
+    <groupId>io.quarkus</groupId>
+    <artifactId>quarkus-flyway</artifactId>
+</dependency>
+```
+
+Add migration SQL files in `src/main/resources/db/migration/`:
+```
+V1__create_users_table.sql
+V2__add_email_column.sql
+V3__create_orders_table.sql
+```
+
+Configure in `application.properties`:
+```properties
+quarkus.flyway.migrate-at-start=true
+quarkus.flyway.baseline-on-migrate=true
+```
+
+Flyway tracks which migrations have been applied in a `flyway_schema_history` table. It only runs new migrations. If a migration fails, the app fails to start — which is the correct behavior (Portainer will show the container as unhealthy).
+
+### Node.js / SvelteKit (Prisma)
+
+Prisma runs migrations via a CLI command. Add it as a pre-start script.
+
+In `package.json`:
+```json
+{
+  "scripts": {
+    "start": "node build",
+    "prestart": "prisma migrate deploy"
+  }
+}
+```
+
+Or in your `Dockerfile`:
+```dockerfile
+CMD ["sh", "-c", "npx prisma migrate deploy && node build"]
+```
+
+`prisma migrate deploy` only applies pending migrations — it never creates new ones or modifies existing ones. If a migration fails, the container exits and Portainer shows it as unhealthy.
+
+### Python (Alembic)
+
+In your `Dockerfile` or entrypoint:
+```dockerfile
+CMD ["sh", "-c", "alembic upgrade head && python -m uvicorn app:app --host 0.0.0.0"]
+```
+
+### What about rollbacks?
+
+**Don't rely on automatic migration rollbacks.** Instead:
+
+1. **Write forward-only migrations** — never delete columns or tables in the same deploy that removes the code using them
+2. **Two-phase approach for breaking changes**:
+   - Deploy 1: Add new column/table, update code to write to both old and new
+   - Deploy 2: Migrate data, remove old column/table, remove old code
+3. **If a migration is broken**: Fix it with a new forward migration, don't try to roll back
+
+This is safer than rollback scripts because rollbacks can lose data and are rarely tested.
+
+### Preventing concurrent migrations
+
+When Portainer redeploys, it stops the old container and starts the new one. Since only one container runs at a time per stack, concurrent migrations are not an issue. If you ever scale to multiple replicas, both Flyway and Prisma use database-level locks to prevent concurrent migration runs.
+
+---
+
+## 6. Configure Metrics (Optional)
 
 ### Quarkus Backend
 
@@ -486,16 +568,16 @@ labels:
 
 ---
 
-## 6. Migrate Secrets to Infisical
+## 7. Migrate Secrets to Infisical
 
-### Step 6.1 — Create a project in Infisical
+### Step 7.1 — Create a project in Infisical
 
 1. Go to `https://secrets.homelab.local` → log in
 2. Click **Create Project**
 3. Name it **exactly** the same as your app (e.g. `bookshelf-haven`) — this name is used by CI/CD to find secrets
 4. Inside the project, create two environments: `dev` and `production`
 
-### Step 6.2 — Import secrets
+### Step 7.2 — Import secrets
 
 ```bash
 infisical login --domain=https://secrets.homelab.local
@@ -507,14 +589,14 @@ infisical secrets push --env=dev --projectName=my-app < .env.local
 infisical secrets push --env=production --projectName=my-app < .env.production
 ```
 
-### Step 6.3 — Grant Machine Identity access
+### Step 7.3 — Grant Machine Identity access
 
 1. Infisical → your project → **Access Control** → **Machine Identities**
 2. Add `github-actions-ci` with `reader` role for the `production` environment
 
 See **"What is a Machine Identity?"** in the main README if you haven't created one yet.
 
-### Step 6.4 — Add runtime secrets to docker-compose.yml
+### Step 7.4 — Add runtime secrets to docker-compose.yml
 
 Secrets are injected as environment variables by the deploy script. Reference them in `docker-compose.yml`:
 ```yaml
@@ -526,7 +608,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
 ```
 
-### Step 6.5 — Clean up .env files
+### Step 7.5 — Clean up .env files
 
 ```bash
 rm .env .env.local .env.production 2>/dev/null
@@ -543,7 +625,7 @@ grep -q "^\.env" .gitignore || echo ".env*" >> .gitignore
 
 ---
 
-## 7. Set Up GitHub Actions CI/CD
+## 8. Set Up GitHub Actions CI/CD
 
 Create `.github/workflows/deploy.yml` in your app repo.
 
@@ -684,7 +766,7 @@ For full-stack apps where frontend and backend share the same secrets, either:
 
 ---
 
-## 8. Register Stack in Portainer
+## 9. Register Stack in Portainer
 
 ### First-time Portainer setup (once only)
 
@@ -718,7 +800,7 @@ git clone https://github.com/adarshraj/my-app ~/apps/my-app
 
 ---
 
-## 9. Verify Everything Works
+## 10. Verify Everything Works
 
 **Traefik routing**
 - [ ] `https://my-app.homelab.local` loads without certificate warnings
@@ -748,16 +830,16 @@ git clone https://github.com/adarshraj/my-app ~/apps/my-app
 
 ---
 
-## 10. For Shared Libraries (npm)
+## 11. For Shared Libraries (npm)
 
-### Step 10.1 — Create a Verdaccio user account (once per developer)
+### Step 11.1 — Create a Verdaccio user account (once per developer)
 
 ```bash
 npm adduser --registry https://npm.homelab.local
 # Enter username, password, email when prompted
 ```
 
-### Step 10.2 — Set up the library package.json
+### Step 11.2 — Set up the library package.json
 
 ```json
 {
@@ -777,14 +859,14 @@ Add `.npmrc` to the library repo root:
 @adarshraj:registry=https://npm.homelab.local
 ```
 
-### Step 10.3 — Publish manually (first time)
+### Step 11.3 — Publish manually (first time)
 
 ```bash
 npm run build
 npm publish
 ```
 
-### Step 10.4 — Automate publishing
+### Step 11.4 — Automate publishing
 
 Get your Verdaccio auth token:
 ```bash
@@ -825,7 +907,7 @@ npm version patch   # bumps 1.0.0 → 1.0.1
 git push --follow-tags
 ```
 
-### Step 10.5 — Install in any app
+### Step 11.5 — Install in any app
 
 Add `.npmrc` to the consuming app repo:
 ```
