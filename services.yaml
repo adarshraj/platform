@@ -139,6 +139,14 @@ shared_services:
     depends_on: []
     type: backend-only
 
+  - name: email-service
+    subdomain: mail.homelab.local
+    ports:
+      api: 8706
+    repo: adarshraj/email-service
+    depends_on: [auth-service, redis]
+    type: backend-only
+
 # ─── ConvertedNut Applications ───────────────────────────────────────────────
 
 apps:
