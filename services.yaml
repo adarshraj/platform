@@ -123,11 +123,11 @@ shared_services:
     depends_on: []
     type: backend-only
 
-  - name: ai-wrap
-    subdomain: aiwrap.homelab.local
+  - name: ai-shim
+    subdomain: aishim.homelab.local
     ports:
       api: 8704
-    repo: adarshraj/ai-wrap
+    repo: adarshraj/ai-shim
     depends_on: []
     type: backend-only
 
@@ -156,7 +156,7 @@ apps:
       frontend: 3000
       backend: 8080
     repo: adarshraj/bookshelf-haven
-    depends_on: [auth-service, docbucket, ai-wrap]
+    depends_on: [auth-service, docbucket, ai-shim]
     type: full-stack
 
   - name: vahan-track
@@ -208,7 +208,7 @@ apps:
     ports:
       app: 3000
     repo: adarshraj/finance-tracker
-    depends_on: [auth-service]
+    depends_on: [auth-service, ai-shim, docbucket, email-service]
     type: monolithic
 
   - name: family-health-tracker

@@ -6,7 +6,7 @@
 
 ## Why this file exists
 
-Every time you build a new `*-wrap` gateway (ai-wrap, email-service), you copy-paste
+Every time you build a new gateway (ai-shim, email-service), you copy-paste
 the same ~500 lines of infrastructure code. You also have several apps with
 uncoordinated cron/scheduling logic, and a notification story that's already visible
 on the horizon. Before you build the next new gateway, decide whether to fix these
@@ -52,7 +52,7 @@ already covers it.
 
 ### The pain
 
-While building `email-service`, I copied from `ai-wrap`:
+While building `email-service`, I copied from `ai-shim`:
 
 - `filter/RequestLoggingFilter.kt` — request ID → MDC
 - `filter/ResponseLoggingFilter.kt` — `X-Request-Id` response header
@@ -108,7 +108,7 @@ Everything cross-cutting disappears from the service's own codebase.
 ### Effort estimate
 
 - Extract + publish: **4 hours**
-- Migrate ai-wrap to consume it: **1 hour** (mostly delete files)
+- Migrate ai-shim to consume it: **1 hour** (mostly delete files)
 - Migrate email-service to consume it: **1 hour** (same)
 - Total: **~1 day** including tests
 
@@ -116,7 +116,7 @@ Everything cross-cutting disappears from the service's own codebase.
 
 **The next time you're about to build a new Kotlin+Quarkus gateway.** Do the
 extraction *before* the new service, then build the new service on top. Rule of
-three has already fired (ai-wrap, email-service, auth-service has partial overlap).
+three has already fired (ai-shim, email-service, auth-service has partial overlap).
 
 ### Risks
 

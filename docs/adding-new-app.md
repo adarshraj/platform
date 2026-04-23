@@ -31,7 +31,7 @@ Your app falls into one of four types. Traefik config and GitHub Actions workflo
 |---|---|---|
 | **Full-stack** | Separate frontend + backend containers | bookshelf-haven, vahan-track |
 | **Frontend-only** | Single container, UI only | F1Pulse, family-health-tracker |
-| **Backend-only** | API/service with no UI | auth-service, ai-wrap, DocBucket |
+| **Backend-only** | API/service with no UI | auth-service, ai-shim, DocBucket |
 | **Monolithic** | Single container for both UI and API | finance-tracker (SvelteKit) |
 
 ---

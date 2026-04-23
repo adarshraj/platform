@@ -106,7 +106,7 @@ public class AiWrapClient {
     )
     @Fallback(fallbackMethod = "aiUnavailableFallback")
     public String getSuggestion(String prompt) {
-        // HTTP call to ai-wrap
+        // HTTP call to ai-shim
     }
 
     private String aiUnavailableFallback(String prompt) {

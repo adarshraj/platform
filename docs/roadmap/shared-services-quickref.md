@@ -30,7 +30,7 @@ If any answer is "no / not yet", stop and reconsider.
 
 ## `platform-commons` — what gets extracted
 
-From ai-wrap + email-service (already duplicated), pull into a Maven module:
+From ai-shim + email-service (already duplicated), pull into a Maven module:
 
 - `filter/RequestLoggingFilter` (request ID → MDC)
 - `filter/ResponseLoggingFilter` (`X-Request-Id` echo)

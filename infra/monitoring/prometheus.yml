@@ -47,7 +47,7 @@ scrape_configs:
           - https://status.homelab.local
           # Shared services
           - https://auth.homelab.local
-          - https://aiwrap.homelab.local
+          - https://aishim.homelab.local
           - https://docbucket.homelab.local
           # Applications
           - https://bookshelf.homelab.local

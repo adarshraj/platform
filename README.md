@@ -75,7 +75,7 @@ Your Browser or Device
    │                  Your Application Stacks              │
    │                                                       │
    │  bookshelf-haven    vahan-track    finance-tracker    │
-   │  auth-service       DocBucket      ai-wrap   ...      │
+   │  auth-service       DocBucket      ai-shim   ...      │
    └────┬──────────────────────────────────────────────────┘
         │
         │  Platform infrastructure (this repo)
@@ -188,7 +188,7 @@ providers:
 
 ### A. Service Dependencies (Runtime)
 
-Some apps depend on other services to be running. For example, `bookshelf-haven` needs `auth-service`, `DocBucket`, and `ai-wrap` to be running before it works properly.
+Some apps depend on other services to be running. For example, `bookshelf-haven` needs `auth-service`, `DocBucket`, and `ai-shim` to be running before it works properly.
 
 **How the platform helps**:
 
@@ -198,7 +198,7 @@ Some apps depend on other services to be running. For example, `bookshelf-haven`
    # In bookshelf-haven's .env / Infisical secret:
    AUTH_SERVICE_URL=http://auth-service:8703   # container name, not localhost
    DOCBUCKET_URL=http://docbucket:8705
-   AI_WRAP_URL=http://ai-wrap:8704
+   AI_SHIM_URL=http://ai-shim:8704
    ```
 
 2. **Portainer visibility**: The Portainer UI shows all stacks and their status. Before deploying `bookshelf-haven`, you can confirm `auth-service` is healthy. If `auth-service` crashes, you see it immediately in Portainer without SSHing in.
@@ -792,7 +792,7 @@ Grafana's datasources (Prometheus and Loki) are **auto-provisioned** on startup 
 ```
 Trace abc123def456... (total 1.4s)
 ├─ auth-service  /verify              12ms
-├─ ai-wrap       POST /ai/invoke    1380ms
+├─ ai-shim       POST /ai/invoke    1380ms
 │  └─ api.openai.com call           1350ms
 └─ doc-bucket    GET /documents/42    95ms
 ```
@@ -808,7 +808,7 @@ Trace abc123def456... (total 1.4s)
 2. Tell the service where the collector is. Every OTEL SDK reads `OTEL_EXPORTER_OTLP_ENDPOINT`. Set it in your service's `docker-compose.yml` to `http://otel-collector:4317`.
 3. Include trace ID in your log format so Loki → Tempo correlation works. For Quarkus add `[trace=%X{traceId:-}/%X{spanId:-}]` to `quarkus.log.console.format`; the extension populates the MDC automatically. For Python, `opentelemetry-instrumentation-logging` injects `%(otelTraceID)s` / `%(otelSpanID)s` into every log record.
 
-Services already doing this: `ai-wrap`, `auth-service`, `docbucket`, `paddle-ocr-wrap`.
+Services already doing this: `ai-shim`, `auth-service`, `docbucket`, `paddle-ocr-wrap`.
 
 **To enable a new service**:
 ```yaml
