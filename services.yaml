@@ -126,7 +126,7 @@ shared_services:
   - name: ai-shim
     subdomain: aishim.homelab.local
     ports:
-      api: 8704
+      api: 8090
     repo: adarshraj/ai-shim
     depends_on: []
     type: backend-only
