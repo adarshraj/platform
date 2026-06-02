@@ -26,7 +26,7 @@ This repo does **not** contain application code — it contains the platform lay
    - [Garage — S3-Compatible Object Storage](#garage--s3-compatible-object-storage)
 6. [Repo Structure](#6-repo-structure)
 7. [Quick Start — Homelab](#7-quick-start--homelab)
-8. [Quick Start — VPS (Production)](#8-quick-start--vps-production)
+8. [Quick Start — VPS (Production)](#8-quick-start--vps-production) — see also [docs/vps-deployment.md](docs/vps-deployment.md)
 9. [CI/CD — Reusable Workflows](#9-cicd--reusable-workflows)
 10. [Adding a New App](#10-adding-a-new-app)
 11. [App Security & Portability](#11-app-security--portability)
@@ -1180,51 +1180,78 @@ Open these URLs in your browser:
 
 ## 8. Quick Start — VPS (Production)
 
-When you're ready to move from homelab to a real server, the process is identical with three small changes.
+See **[docs/vps-deployment.md](docs/vps-deployment.md)** for the complete step-by-step guide.
 
-### Differences from Homelab
+### Key differences from homelab
 
-**1. Real domain instead of homelab.local**
-
-Buy a domain (e.g. `yourdomain.com`) and create a wildcard DNS A record:
+**1. Real domain + wildcard DNS**
 ```
 *.yourdomain.com  →  your VPS IP
 ```
-
-Update all `homelab.local` references in your app `docker-compose.yml` labels to use `yourdomain.com`.
+Update all `homelab.local` references in app `docker-compose.yml` labels.
 
 **2. Let's Encrypt instead of mkcert**
 
-In `infra/traefik/traefik.yml`, uncomment the certificate resolver section:
-```yaml
-certificatesResolvers:
-  letsencrypt:
-    acme:
-      email: your@email.com
-      storage: /letsencrypt/acme.json
-      tlsChallenge: {}
-```
-
-And in each app's Traefik labels, add:
+Uncomment the certificate resolver in `infra/traefik/traefik.yml` and add to each app's labels:
 ```yaml
 - "traefik.http.routers.myapp.tls.certresolver=letsencrypt"
 ```
+Remove `infra/traefik/dynamic/tls.yml` — homelab only.
 
-Remove `infra/traefik/dynamic/tls.yml` — it's no longer needed.
+**3. GHCR authentication (private images)**
 
-**3. No /etc/hosts needed**
-
-Public DNS resolves your domain automatically for all devices.
-
-### Everything else is identical
-
-Same `bootstrap.sh`, same stacks, same scripts, same Portainer, same Infisical. Run:
+App images are private on GHCR. Before running bootstrap, store a GitHub PAT
+(`read:packages` permission) on the VPS:
 ```bash
-git clone https://github.com/adarshraj/platform ~/platform
-cd ~/platform
-# fill .env files (same as homelab)
-./scripts/bootstrap.sh
+mkdir -p ~/.config/platform
+echo "github_pat_xxx" > ~/.config/platform/ghcr-token
+chmod 600 ~/.config/platform/ghcr-token
 ```
+`bootstrap.sh` and `deploy-app.sh` call `scripts/ghcr-login.sh` automatically.
+
+### Minimal VPS deployment sequence
+
+```bash
+# 1. Clone platform (only manual clone ever needed)
+git clone https://github.com/adarshraj/platform ~/platform
+
+# 2. Set up GHCR token (see above)
+
+# 3. Fill in .env files
+cp ~/platform/infra/traefik/.env.example    ~/platform/infra/traefik/.env
+cp ~/platform/infra/secrets/.env.example    ~/platform/infra/secrets/.env
+cp ~/platform/infra/monitoring/.env.example ~/platform/infra/monitoring/.env
+# edit each file
+
+# 4. Bootstrap all platform infrastructure
+~/platform/scripts/bootstrap.sh
+
+# 5. Clone all app repos in one shot
+~/platform/scripts/clone-apps.sh
+
+# 6. Deploy shared services (in order)
+~/platform/scripts/deploy-app.sh auth-service production \
+  ~/apps/auth-service/docker-compose.prod.yml
+~/platform/scripts/deploy-app.sh ai-shim production
+~/platform/scripts/deploy-app.sh email-service production
+~/platform/scripts/deploy-app.sh doc-bucket production \
+  ~/apps/doc-bucket/docker-compose.yml
+
+# 7. Deploy apps (start with one, add more incrementally)
+~/platform/scripts/deploy-app.sh finance-tracker production
+```
+
+### Incremental approach — start small
+
+You don't have to deploy everything at once. Apps registered in `services.yaml` consume
+no resources until you run `deploy-app.sh` on them. Start with the shared services and
+one or two apps, verify they work, then add more whenever you're ready.
+
+### Migrating to a new VPS
+
+Same sequence above on the new server — the platform is fully reproducible from GitHub.
+Only persistent data (SQLite files, Garage objects) needs to be restored from backup first.
+See [docs/vps-deployment.md#11-migrating-to-a-new-vps](docs/vps-deployment.md#11-migrating-to-a-new-vps).
 
 ---
 
@@ -1354,6 +1381,25 @@ If you don't have a GitHub org (personal account only), set them at repo level: 
 | `PORTAINER_WEBHOOK_URL_<APPNAME>` | Portainer UI → Stacks → your stack → Webhooks → copy URL (one per app) |
 
 `GITHUB_TOKEN` is injected automatically by GitHub — no setup needed.
+
+#### Portainer webhook secret naming convention
+
+App name in UPPERCASE with underscores:
+
+| App / service | Secret name |
+|---|---|
+| `auth-service` | `PORTAINER_WEBHOOK_URL_AUTH_SERVICE` |
+| `ai-shim` | `PORTAINER_WEBHOOK_URL_AI_SHIM` |
+| `doc-bucket` | `PORTAINER_WEBHOOK_URL_DOCBUCKET` |
+| `email-service` | `PORTAINER_WEBHOOK_URL_EMAIL_SERVICE` |
+| `finance-tracker` | `PORTAINER_WEBHOOK_URL_FINANCE_TRACKER` |
+| `bookshelf-haven` | `PORTAINER_WEBHOOK_URL_BOOKSHELF_HAVEN` |
+
+#### Private GHCR images
+
+All app images are private on GitHub Container Registry. The VPS needs a GitHub PAT
+with `read:packages` permission to pull them. This is handled by `scripts/ghcr-login.sh`
+which runs automatically before every pull. See [docs/vps-deployment.md#9-private-ghcr-images](docs/vps-deployment.md#9-private-ghcr-images) for setup.
 
 #### What is a Machine Identity?
 
