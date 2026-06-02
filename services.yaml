@@ -91,6 +91,13 @@ platform:
     type: platform
     stack_dir: infra/uptime-kuma
 
+  - name: umami
+    subdomain: analytics.homelab.local
+    ports: [3000]
+    repo: adarshraj/platform
+    type: platform
+    stack_dir: infra/umami
+
   - name: redis
     subdomain: ~              # internal only, no external route
     ports: [6379]

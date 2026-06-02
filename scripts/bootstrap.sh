@@ -81,6 +81,15 @@ echo "Starting Uptime Kuma (status page)..."
 cd "$PLATFORM_DIR/infra/uptime-kuma" && docker compose up -d
 echo "  ✓ Uptime Kuma"
 
+echo "Starting Umami (web analytics)..."
+if [ ! -f "$PLATFORM_DIR/infra/umami/.env" ]; then
+  echo "  ERROR: infra/umami/.env not found."
+  echo "  Copy infra/umami/.env.example to infra/umami/.env and fill in the values."
+  exit 1
+fi
+cd "$PLATFORM_DIR/infra/umami" && docker compose --env-file .env up -d
+echo "  ✓ Umami"
+
 # 5. Set up daily backup cron
 CRON_JOB="0 2 * * * $PLATFORM_DIR/scripts/backup.sh >> /var/log/platform-backup.log 2>&1"
 (crontab -l 2>/dev/null | grep -qF "platform/scripts/backup.sh") || \
@@ -108,6 +117,7 @@ echo "  https://monitoring.homelab.local  → Grafana"
 echo "  https://secrets.homelab.local     → Infisical"
 echo "  https://npm.homelab.local         → Verdaccio"
 echo "  https://status.homelab.local      → Uptime Kuma"
+echo "  https://analytics.homelab.local   → Umami"
 echo ""
 echo "Next steps:"
 echo "  1. Configure DNS: point *.homelab.local to this server's IP"

@@ -486,7 +486,7 @@ Always deploy in this order — services must be available before apps that depe
 
 ```
 1. Platform infra (bootstrap.sh handles this)
-   traefik → portainer → infisical → loki → prometheus → verdaccio → uptime-kuma
+   traefik → portainer → infisical → loki → prometheus → verdaccio → uptime-kuma → umami
    redis and garage are started as part of bootstrap too
 
 2. Shared services (deploy manually in order)

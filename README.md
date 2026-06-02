@@ -22,6 +22,7 @@ This repo does **not** contain application code — it contains the platform lay
    - [Blackbox Exporter — Endpoint Probing](#blackbox-exporter--endpoint-probing)
    - [Verdaccio — Private npm Registry](#verdaccio--private-npm-registry)
    - [Uptime Kuma — Status Page](#uptime-kuma--status-page)
+   - [Umami — Web Analytics](#umami--web-analytics)
    - [Redis — Shared Cache](#redis--shared-cache)
    - [Garage — S3-Compatible Object Storage](#garage--s3-compatible-object-storage)
 6. [Repo Structure](#6-repo-structure)
@@ -899,6 +900,24 @@ Verdaccio stores the package. Any npm install for `@adarshraj/*` packages goes t
 
 ---
 
+### Umami — Web Analytics
+
+**What it is**: A lightweight, privacy-friendly web analytics platform. A self-hosted alternative to Google Analytics.
+
+**What it does here**:
+- Tracks page views, unique visitors, referrers, devices, and countries across all your apps
+- One Umami instance serves all apps — each app registers as a separate "website" in the UI
+- Provides a clean dashboard at `https://analytics.homelab.local`
+- GDPR-friendly: no cookies, no personal data stored, no cross-site tracking
+
+**How to add tracking to an app**: After logging into Umami, add a website entry and copy the generated `<script>` tag into your app's HTML `<head>`. That's the only code change needed.
+
+**Resource usage**: ~250–350 MB RAM total (Umami app + PostgreSQL). One of the lightest services on the platform.
+
+**Config**: `infra/umami/docker-compose.yml`. Requires `UMAMI_DB_PASSWORD` and `UMAMI_APP_SECRET` in `infra/umami/.env`. Default login on first start: `admin` / `umami` — **change immediately**.
+
+---
+
 ### Redis — Shared Cache
 
 **What it is**: An in-memory key-value store used for application-level caching, session storage, and rate limiting.
@@ -1029,6 +1048,9 @@ platform/
 │   │
 │   ├── uptime-kuma/
 │   │   └── docker-compose.yml      ← Uptime Kuma status page
+│   ├── umami/
+│   │   ├── docker-compose.yml      ← Umami analytics (app + postgres)
+│   │   └── .env.example
 │   │
 │   ├── redis/
 │   │   ├── docker-compose.yml      ← shared Redis cache (opt-in per app)
