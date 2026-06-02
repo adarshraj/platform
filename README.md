@@ -1212,8 +1212,13 @@ chmod 600 ~/.config/platform/ghcr-token
 ### Minimal VPS deployment sequence
 
 ```bash
-# 1. Clone platform (only manual clone ever needed)
+# 0. Install prerequisites (fresh VPS only — needs git + curl at minimum)
+sudo apt update && sudo apt install -y git curl
 git clone https://github.com/adarshraj/platform ~/platform
+sudo bash ~/platform/scripts/install-prerequisites.sh
+# Log out and back in so docker group takes effect
+
+# 1. Platform repo is already cloned above
 
 # 2. Set up GHCR token (see above)
 

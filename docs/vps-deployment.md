@@ -24,13 +24,23 @@ This covers everything from initial setup to adding apps incrementally.
 
 ## 1. Prerequisites
 
-On your VPS (Ubuntu/Debian recommended):
+On a completely fresh Ubuntu/Debian VPS, only `git` and `curl` need to be installed manually —
+everything else is handled by `install-prerequisites.sh`.
 
 ```bash
-sudo apt update && sudo apt install -y git curl python3
+# The only two commands you ever run manually on a fresh VPS
+sudo apt update && sudo apt install -y git curl
+git clone https://github.com/adarshraj/platform ~/platform
+sudo bash ~/platform/scripts/install-prerequisites.sh
 ```
 
-Docker is installed automatically by `bootstrap.sh` if missing.
+`install-prerequisites.sh` installs:
+- `git`, `curl`, `wget`, `python3` — system utilities
+- Docker + Docker Compose plugin — container runtime
+- Infisical CLI — secrets injection at deploy time
+
+It also adds your user to the `docker` group. **Log out and back in after it completes**
+so the group change takes effect before running bootstrap.
 
 ---
 

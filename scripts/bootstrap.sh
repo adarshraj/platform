@@ -10,13 +10,17 @@ echo "=== Platform Bootstrap ==="
 echo "Platform dir: $PLATFORM_DIR"
 echo ""
 
-# 1. Check Docker is installed
-if ! command -v docker &>/dev/null; then
-  echo "Docker not found. Installing..."
-  curl -fsSL https://get.docker.com | sh
-  sudo usermod -aG docker "$USER"
-  echo "Docker installed. You may need to log out and back in for group changes to take effect."
+# 1. Verify prerequisites
+MISSING=()
+for cmd in docker git python3 infisical curl; do
+  command -v "$cmd" &>/dev/null || MISSING+=("$cmd")
+done
+if [ ${#MISSING[@]} -gt 0 ]; then
+  echo "ERROR: Missing required tools: ${MISSING[*]}"
+  echo "Run first: sudo bash $PLATFORM_DIR/scripts/install-prerequisites.sh"
+  exit 1
 fi
+echo "  ✓ Prerequisites verified"
 
 # 2. Authenticate with GHCR (required to pull private images)
 echo "Logging in to GitHub Container Registry..."
