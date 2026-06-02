@@ -248,11 +248,21 @@ To keep these versions up to date, the repo includes a [Renovate](https://github
 - Patch updates (e.g. `v3.10.0` → `v3.10.1`) are automerged
 - Postgres major version bumps are blocked (these require manual migration)
 
-**To activate**: Install the [Renovate GitHub App](https://github.com/apps/renovate) on this repo, or self-host Renovate. The `renovate.json` config is picked up automatically.
+**Self-hosted on the VPS** — no GitHub App, no third-party service needed. Renovate runs
+as a Docker container via cron every Monday at 5:50am, scheduled automatically by `bootstrap.sh`.
+It reads `renovate.json` from each repo, opens PRs for outdated versions, and exits.
 
-**Manual alternative**: If you prefer not to use Renovate, you can check for updates by running:
+Setup: store a GitHub PAT (`Contents + Pull requests + Workflows: Read & Write`) in
+`~/.config/platform/renovate-token`. See [docs/vps-deployment.md#11-self-hosted-renovate](docs/vps-deployment.md#11-self-hosted-renovate)
+for full setup instructions.
+
+**Trigger manually**:
 ```bash
-# Check what you're currently running vs what's available
+bash ~/platform/scripts/renovate.sh
+```
+
+**Manual alternative** (no Renovate):
+```bash
 docker compose pull --dry-run   # shows which images have newer versions
 ```
 
@@ -1036,21 +1046,26 @@ platform/
 │       └── create-networks.sh      ← creates platform_proxy + monitoring_internal + socket_proxy (run once)
 │
 ├── scripts/
-│   ├── bootstrap.sh           ← installs Docker, creates networks, starts all infra (run once)
-│   ├── deploy-app.sh          ← deploys/updates one app: fetches secrets + pulls + restarts
-│   ├── update-all.sh          ← runs deploy-app.sh for every app in ~/apps/
-│   ├── backup.sh              ← dumps all PostgreSQL DBs + backs up volumes, syncs offsite
-│   ├── verify-backup.sh       ← validates backup integrity (gzip, SQL, tar, checksums)
-│   ├── lint-platform.sh       ← local lint: yamllint + shellcheck + docker compose config
-│   └── logs.sh                ← tails logs for a named app stack
+│   ├── install-prerequisites.sh ← run once on fresh VPS: installs git, docker, python3, infisical CLI
+│   ├── bootstrap.sh             ← verifies prereqs, logs in to GHCR, creates networks, starts all infra
+│   ├── ghcr-login.sh            ← authenticates Docker with GHCR (called by bootstrap + deploy-app)
+│   ├── clone-apps.sh            ← clones/pulls all app repos from services.yaml to ~/apps/
+│   ├── deploy-app.sh            ← deploys/updates one app: re-auths GHCR + fetches secrets + pulls + restarts
+│   ├── update-all.sh            ← runs deploy-app.sh for every app in ~/apps/
+│   ├── renovate.sh              ← runs self-hosted Renovate weekly (scheduled by bootstrap at Mon 5:50am)
+│   ├── backup.sh                ← dumps all PostgreSQL DBs + backs up volumes, syncs offsite
+│   ├── verify-backup.sh         ← validates backup integrity (gzip, SQL, tar, checksums)
+│   ├── lint-platform.sh         ← local lint: yamllint + shellcheck + docker compose config
+│   └── logs.sh                  ← tails logs for a named app stack
 │
 └── docs/
-    ├── redis-caching.md               ← step-by-step guide to enabling Redis caching in each framework
-    ├── adding-new-app.md           ← complete checklist for onboarding any new app
-    ├── local-dev.md                ← dev machine setup: DNS, TLS trust, Infisical CLI, npm registry
-    ├── troubleshooting-new-apps.md ← common errors when adding an app and how to fix them
-    ├── platform-roadmap.md         ← future enhancements (SSO, cosign, Tempo, Uptime Kuma, etc.)
-    └── decisions/                  ← Architecture Decision Records (why each tool was chosen)
+    ├── vps-deployment.md          ← complete VPS setup guide: prereqs → bootstrap → deploy
+    ├── adding-new-app.md          ← complete checklist for onboarding any new app
+    ├── redis-caching.md           ← step-by-step guide to enabling Redis caching in each framework
+    ├── local-dev.md               ← dev machine setup: DNS, TLS trust, Infisical CLI, npm registry
+    ├── troubleshooting-new-apps.md← common errors when adding an app and how to fix them
+    ├── platform-roadmap.md        ← future enhancements (SSO, cosign, Tempo, Uptime Kuma, etc.)
+    └── decisions/                 ← Architecture Decision Records (why each tool was chosen)
         ├── 001-traefik-over-nginx.md
         ├── 002-infisical-over-vault.md
         └── 003-loki-over-elk.md
@@ -1064,18 +1079,28 @@ This runs everything on a single machine on your local network. All services are
 
 ### Prerequisites
 
-- Any machine with Docker installed (Linux, Mac, Windows with WSL2)
-- `mkcert` for TLS certificates
+- Any Linux machine (Ubuntu/Debian recommended), Mac, or Windows with WSL2
+- `mkcert` for TLS certificates (installed below)
 
-### Step 1 — Install Docker
+### Step 1 — Install prerequisites
 
+On Linux (Ubuntu/Debian):
 ```bash
-curl -fsSL https://get.docker.com | sh
-sudo usermod -aG docker $USER
-newgrp docker   # apply group change without logging out
+sudo apt update && sudo apt install -y git curl
+git clone https://github.com/adarshraj/platform ~/platform
+sudo bash ~/platform/scripts/install-prerequisites.sh
+# Log out and back in so the docker group takes effect
+```
+
+On Mac (Docker Desktop handles Docker — install remaining tools manually):
+```bash
+brew install git python3
+# Install Infisical: https://infisical.com/docs/cli/overview
 ```
 
 ### Step 2 — Clone this repo
+
+_(Already done above if you followed Step 1 on Linux)_
 
 ```bash
 git clone https://github.com/adarshraj/platform ~/platform
