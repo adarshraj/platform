@@ -16,7 +16,7 @@ services:
       - platform_proxy
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.portainer.rule=Host(`portainer.homelab.local`)"
+      - "traefik.http.routers.portainer.rule=Host(`${PORTAINER_HOST:-portainer.homelab.local}`)"
       - "traefik.http.routers.portainer.entrypoints=websecure"
       - "traefik.http.routers.portainer.tls=true"
       - "traefik.http.services.portainer.loadbalancer.server.port=9000"

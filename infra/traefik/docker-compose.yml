@@ -30,7 +30,7 @@ services:
         condition: service_healthy
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.dashboard.rule=Host(`traefik.homelab.local`)"
+      - "traefik.http.routers.dashboard.rule=Host(`${TRAEFIK_HOST:-traefik.homelab.local}`)"
       - "traefik.http.routers.dashboard.entrypoints=websecure"
       - "traefik.http.routers.dashboard.tls=true"
       - "traefik.http.routers.dashboard.service=api@internal"

@@ -23,7 +23,7 @@ services:
       - platform_proxy
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.garage.rule=Host(`s3.homelab.local`)"
+      - "traefik.http.routers.garage.rule=Host(`${GARAGE_HOST:-s3.homelab.local}`)"
       - "traefik.http.routers.garage.entrypoints=websecure"
       - "traefik.http.routers.garage.tls=true"
       - "traefik.http.services.garage.loadbalancer.server.port=3900"

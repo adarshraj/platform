@@ -15,7 +15,7 @@ services:
       - platform_proxy
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.uptime-kuma.rule=Host(`status.homelab.local`)"
+      - "traefik.http.routers.uptime-kuma.rule=Host(`${UPTIME_KUMA_HOST:-status.homelab.local}`)"
       - "traefik.http.routers.uptime-kuma.entrypoints=websecure"
       - "traefik.http.routers.uptime-kuma.tls=true"
       - "traefik.http.services.uptime-kuma.loadbalancer.server.port=3001"

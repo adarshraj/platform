@@ -22,7 +22,7 @@ services:
         condition: service_healthy
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.umami.rule=Host(`analytics.homelab.local`)"
+      - "traefik.http.routers.umami.rule=Host(`${UMAMI_HOST:-analytics.homelab.local}`)"
       - "traefik.http.routers.umami.entrypoints=websecure"
       - "traefik.http.routers.umami.tls=true"
       - "traefik.http.services.umami.loadbalancer.server.port=3000"

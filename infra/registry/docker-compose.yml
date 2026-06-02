@@ -17,7 +17,7 @@ services:
       - platform_proxy
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.verdaccio.rule=Host(`npm.homelab.local`)"
+      - "traefik.http.routers.verdaccio.rule=Host(`${VERDACCIO_HOST:-npm.homelab.local}`)"
       - "traefik.http.routers.verdaccio.entrypoints=websecure"
       - "traefik.http.routers.verdaccio.tls=true"
       - "traefik.http.services.verdaccio.loadbalancer.server.port=4873"
