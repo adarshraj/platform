@@ -17,8 +17,9 @@ This covers everything from initial setup to adding apps incrementally.
 8. [Adding More Apps Later](#8-adding-more-apps-later)
 9. [Private GHCR Images](#9-private-ghcr-images)
 10. [GitHub Secrets Setup](#10-github-secrets-setup)
-11. [Migrating to a New VPS](#11-migrating-to-a-new-vps)
-12. [Deployment Order Reference](#12-deployment-order-reference)
+11. [Self-Hosted Renovate](#11-self-hosted-renovate)
+12. [Migrating to a New VPS](#12-migrating-to-a-new-vps)
+13. [Deployment Order Reference](#13-deployment-order-reference)
 
 ---
 
@@ -369,7 +370,72 @@ Portainer webhook URLs must be per-repo (each stack has a unique URL).
 
 ---
 
-## 11. Migrating to a New VPS
+## 11. Self-Hosted Renovate
+
+Renovate is self-hosted on the VPS as a Docker container run weekly via cron.
+It scans all your GitHub repos, finds outdated dependency versions (Docker images,
+Maven packages, npm packages, GitHub Actions), and opens PRs automatically.
+
+**It is completely free — no GitHub App installation needed for self-hosting.**
+
+### How it works
+
+`bootstrap.sh` schedules `scripts/renovate.sh` to run every Monday at 5:50am.
+Renovate pulls the official `renovate/renovate` Docker image, runs it against all
+your repos, opens PRs for outdated versions, and exits. Nothing runs permanently.
+
+### Setup — create a GitHub PAT
+
+Renovate needs a GitHub PAT to read repos and open PRs:
+
+1. GitHub → Settings → Developer settings → Personal access tokens → Fine-grained
+2. **Repository access**: All repositories (or select individual ones)
+3. **Permissions**:
+   - Contents: Read & Write
+   - Pull requests: Read & Write
+   - Workflows: Read & Write
+   - Metadata: Read-only (required)
+4. Copy the token
+
+Store it on the VPS:
+```bash
+echo "github_pat_xxx" > ~/.config/platform/renovate-token
+chmod 600 ~/.config/platform/renovate-token
+```
+
+### What Renovate updates
+
+Configured in `renovate.json` at the platform repo root:
+
+| Update type | Behaviour |
+|---|---|
+| Docker image patch updates | Auto-merges (e.g. `v3.6.8` → `v3.6.9`) |
+| Docker image minor/major | Opens PR for review |
+| Monitoring stack (Prometheus + Grafana) | Grouped into one PR |
+| Logging stack (Loki + Promtail) | Grouped into one PR |
+| Secrets stack (Infisical) | Grouped into one PR |
+| PostgreSQL major version | Blocked — never auto-bumped |
+| All Docker images | Digest-pinned for reproducibility |
+
+### Trigger manually
+
+```bash
+bash ~/platform/scripts/renovate.sh
+```
+
+Logs are written to `~/platform/logs/renovate/YYYY-MM-DD.log`.
+
+### After merging a Renovate PR
+
+Renovate updates the image version in the compose file. To apply it on the VPS:
+```bash
+cd ~/platform/infra/<stack> && docker compose pull && docker compose up -d
+```
+Or use `update-all.sh` to roll out all stacks at once.
+
+---
+
+## 12. Migrating to a New VPS
 
 The entire platform is reproducible from GitHub. Code and config live in git.
 Only persistent data (SQLite DBs, Garage objects, Grafana dashboards) needs a backup restore.
@@ -414,7 +480,7 @@ That's it. The new VPS is running identically to the old one.
 
 ---
 
-## 12. Deployment Order Reference
+## 13. Deployment Order Reference
 
 Always deploy in this order — services must be available before apps that depend on them.
 

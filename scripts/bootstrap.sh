@@ -91,6 +91,11 @@ VERIFY_JOB="30 2 * * * $PLATFORM_DIR/scripts/verify-backup.sh >> /var/log/platfo
 (crontab -l 2>/dev/null | grep -qF "platform/scripts/verify-backup.sh") || \
   (crontab -l 2>/dev/null; echo "$VERIFY_JOB") | crontab -
 echo "  ✓ Daily backup verification scheduled at 2:30am"
+
+RENOVATE_JOB="50 5 * * 1 $PLATFORM_DIR/scripts/renovate.sh >> /var/log/platform-renovate.log 2>&1"
+(crontab -l 2>/dev/null | grep -qF "platform/scripts/renovate.sh") || \
+  (crontab -l 2>/dev/null; echo "$RENOVATE_JOB") | crontab -
+echo "  ✓ Weekly Renovate run scheduled at 5:50am Monday"
 echo ""
 
 echo ""

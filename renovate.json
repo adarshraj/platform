@@ -4,6 +4,8 @@
   "schedule": ["before 6am on Monday"],
   "timezone": "America/New_York",
   "labels": ["dependencies"],
+  "onboarding": false,
+  "requireConfig": "optional",
   "docker-compose": {
     "fileMatch": ["infra/.+/docker-compose\\.yml$"]
   },
