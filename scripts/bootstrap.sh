@@ -18,11 +18,15 @@ if ! command -v docker &>/dev/null; then
   echo "Docker installed. You may need to log out and back in for group changes to take effect."
 fi
 
-# 2. Create shared networks
+# 2. Authenticate with GHCR (required to pull private images)
+echo "Logging in to GitHub Container Registry..."
+bash "$PLATFORM_DIR/scripts/ghcr-login.sh"
+
+# 3. Create shared networks
 echo "Creating shared Docker networks..."
 bash "$PLATFORM_DIR/infra/networks/create-networks.sh"
 
-# 3. Start infrastructure in order
+# 4. Start infrastructure in order
 echo ""
 echo "Starting Docker socket proxy..."
 cd "$PLATFORM_DIR/infra/docker-proxy" && docker compose up -d
@@ -73,7 +77,7 @@ echo "Starting Uptime Kuma (status page)..."
 cd "$PLATFORM_DIR/infra/uptime-kuma" && docker compose up -d
 echo "  ✓ Uptime Kuma"
 
-# 4. Set up daily backup cron
+# 5. Set up daily backup cron
 CRON_JOB="0 2 * * * $PLATFORM_DIR/scripts/backup.sh >> /var/log/platform-backup.log 2>&1"
 (crontab -l 2>/dev/null | grep -qF "platform/scripts/backup.sh") || \
   (crontab -l 2>/dev/null; echo "$CRON_JOB") | crontab -

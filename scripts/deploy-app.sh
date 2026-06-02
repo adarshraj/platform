@@ -82,6 +82,14 @@ else
   fi
 fi
 
+# Ensure GHCR credentials are fresh before pulling private images
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if bash "$SCRIPT_DIR/ghcr-login.sh" 2>/dev/null; then
+  : # authenticated
+else
+  echo "  WARNING: GHCR login failed — pull may fail for private images."
+fi
+
 # Pull latest images
 echo "  Pulling latest images..."
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull
