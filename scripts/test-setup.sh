@@ -9,12 +9,16 @@
 #   1. Installs prerequisites (Docker, Infisical CLI, etc.)
 #   2. Sets up GHCR authentication
 #   3. Creates Docker networks
-#   4. Starts test Traefik (HTTP + self-signed HTTPS, no CrowdSec)
-#   5. Prints your nip.io URLs
+#   4. Starts test Traefik (HTTP, no CrowdSec)
+#   5. Clones app repos (auth-service, ai-shim, finance-tracker)
+#   6. Generates .env files for each app
+#   7. Deploys each app in dependency order
+#   8. Prints nip.io URLs
 
 set -euo pipefail
 
 PLATFORM_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+APPS_DIR="$HOME/apps"
 BLUE='\033[0;34m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -69,7 +73,7 @@ if [ ! -f "$TOKEN_FILE" ] || [ ! -s "$TOKEN_FILE" ]; then
   echo ""
   echo "$GHCR_TOKEN" > "$TOKEN_FILE"
   chmod 600 "$TOKEN_FILE"
-  success "Token saved to $TOKEN_FILE"
+  success "Token saved"
 fi
 
 info "Authenticating with GHCR..."
@@ -86,34 +90,65 @@ cd "$PLATFORM_DIR/test/traefik"
 docker compose up -d
 success "Traefik running"
 
-# ── 5. Get public IP and print URLs ───────────────────────────────────────────
-echo ""
+# ── 5. Detect public IP ────────────────────────────────────────────────────────
 info "Detecting public IP..."
-PUBLIC_IP=$(curl -s --max-time 5 ifconfig.me || curl -s --max-time 5 api.ipify.org || echo "unknown")
+PUBLIC_IP=$(curl -s --max-time 5 ifconfig.me || curl -s --max-time 5 api.ipify.org || echo "")
 
-echo ""
-echo "========================================"
-echo "   Test Deployment Ready!"
-echo "========================================"
-echo ""
-if [ "$PUBLIC_IP" != "unknown" ]; then
-  echo "  Your nip.io hostnames (IP: $PUBLIC_IP):"
-  echo ""
-  echo "  Traefik dashboard : http://$PUBLIC_IP:8080"
-  echo "  Auth service      : http://auth.$PUBLIC_IP.nip.io"
-  echo "  AI Shim           : http://aishim.$PUBLIC_IP.nip.io"
-  echo "  Finance Tracker   : http://finance.$PUBLIC_IP.nip.io"
-  echo ""
-  echo "  Set these env vars before deploying each app:"
-  echo ""
-  echo "    AUTH_SERVICE_HOST=auth.$PUBLIC_IP.nip.io"
-  echo "    AI_SHIM_HOST=aishim.$PUBLIC_IP.nip.io"
-  echo "    FINANCE_HOST=finance.$PUBLIC_IP.nip.io"
-else
-  warn "Could not detect public IP. Run: curl ifconfig.me"
-  echo "  Then use: <service>.<your-ip>.nip.io as hostnames"
+if [ -z "$PUBLIC_IP" ]; then
+  read -rp "Could not detect IP automatically. Enter your VPS IP: " PUBLIC_IP
 fi
+success "VPS IP: (hidden)"
+
+# ── 6. Clone app repos ─────────────────────────────────────────────────────────
+mkdir -p "$APPS_DIR"
+
+clone_or_pull() {
+  local name=$1
+  local repo=$2
+  if [ -d "$APPS_DIR/$name/.git" ]; then
+    info "$name already cloned — pulling latest..."
+    git -C "$APPS_DIR/$name" pull --ff-only
+  else
+    info "Cloning $name..."
+    git clone "https://github.com/$repo" "$APPS_DIR/$name"
+  fi
+  success "$name ready"
+}
+
+clone_or_pull auth-service  adarshraj/auth-service
+clone_or_pull ai-shim       adarshraj/ai-wrap
+clone_or_pull finance-tracker adarshraj/finance-tracker
+
+# ── 7. Generate .env files ────────────────────────────────────────────────────
+info "Generating .env files..."
+bash "$PLATFORM_DIR/scripts/gen-env.sh" auth-service   "$PUBLIC_IP"
+bash "$PLATFORM_DIR/scripts/gen-env.sh" ai-shim        "$PUBLIC_IP"
+bash "$PLATFORM_DIR/scripts/gen-env.sh" finance-tracker "$PUBLIC_IP"
+success ".env files generated"
+
+# ── 8. Deploy apps in order ────────────────────────────────────────────────────
+deploy() {
+  local app=$1
+  local compose=$2
+  info "Deploying $app..."
+  bash "$PLATFORM_DIR/scripts/deploy-app.sh" "$app" production "$compose" --allow-empty-secrets
+  success "$app deployed"
+}
+
+deploy auth-service   "$APPS_DIR/auth-service/docker-compose.prod.yml"
+deploy ai-shim        "$APPS_DIR/ai-shim/docker-compose.yml"
+deploy finance-tracker "$APPS_DIR/finance-tracker/docker-compose.yml"
+
+# ── 9. Print URLs ──────────────────────────────────────────────────────────────
 echo ""
-echo "  Next: clone your app repos and deploy them."
-echo "  See: ~/platform/docs/vps-deployment.md"
+echo "========================================"
+echo "   Test Deployment Complete!"
+echo "========================================"
+echo ""
+echo "  Traefik dashboard : http://$PUBLIC_IP:8080"
+echo "  Auth service      : http://auth.$PUBLIC_IP.nip.io"
+echo "  AI Shim           : http://aishim.$PUBLIC_IP.nip.io"
+echo "  Finance Tracker   : http://finance.$PUBLIC_IP.nip.io"
+echo ""
+echo "  Verify containers: docker ps"
 echo ""
