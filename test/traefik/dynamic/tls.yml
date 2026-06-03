@@ -1,1 +1,8 @@
-# placeholder — no TLS for test
+tls:
+  certificates:
+    - certFile: /etc/traefik/certs/tls.crt
+      keyFile: /etc/traefik/certs/tls.key
+  options:
+    default:
+      minVersion: VersionTLS12
+      sniStrict: false

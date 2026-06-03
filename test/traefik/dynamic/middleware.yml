@@ -1,0 +1,16 @@
+http:
+  middlewares:
+    secure-headers:
+      headers:
+        accessControlMaxAge: 100
+        addVaryHeader: true
+        browserXssFilter: true
+        contentSecurityPolicy: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'"
+        contentTypeNosniff: true
+        forceSTSHeader: true
+        frameDeny: true
+        referrerPolicy: "strict-origin-when-cross-origin"
+        stsIncludeSubdomains: true
+        stsMaxAge: 31536000
+        stsPreload: true
+        permissionsPolicy: "camera=(), microphone=(), geolocation=()"
