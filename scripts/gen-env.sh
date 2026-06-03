@@ -12,11 +12,15 @@ set -euo pipefail
 APP="${1:-}"
 IP="${2:-}"
 
-if [ -z "$APP" ] || [ -z "$IP" ]; then
-  echo "Usage: $0 <app-name> <vps-ip>"
+if [ -z "$APP" ]; then
+  echo "Usage: $0 <app-name> [vps-ip]"
   echo ""
   echo "Available apps: auth-service, ai-shim, doc-bucket, email-service, finance-tracker"
   exit 1
+fi
+
+if [ -z "$IP" ]; then
+  read -rp "Enter your VPS IP: " IP
 fi
 
 APPS_DIR="${APPS_DIR:-$HOME/apps}"
