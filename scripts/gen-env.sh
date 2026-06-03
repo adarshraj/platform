@@ -102,10 +102,13 @@ EOF
   finance-tracker)
     cat > "$ENV_FILE" << EOF
 FINANCE_HOST=finance.$IP.nip.io
+PUBLIC_BASE_URL=http://finance.$IP.nip.io
 AUTH_SERVICE_URL=http://auth-service:8703
-AI_SHIM_URL=http://ai-shim:8090
-DOC_BUCKET_URL=http://doc-bucket:8705
-EMAIL_SERVICE_URL=http://email-service:8706
+AUTH_APP_ID=finance-tracker
+POSTGRES_USER=finuser
+POSTGRES_PASSWORD=$(s)
+POSTGRES_DB=finance_tracker
+CRON_SECRET=$(s)
 EOF
     ;;
 
