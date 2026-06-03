@@ -214,27 +214,28 @@ for i in {1..30}; do
   sleep 2
 done
 
-# ── 10. Create test user ────────────────────────────────────────────────────────
-info "Creating test user..."
-docker exec finance-tracker-app-1 wget --post-data='{"email":"test@example.com","password":"TestPassword123!","name":"Test User"}' \
-  --header="Content-Type: application/json" \
-  -O - http://auth-service:8703/auth/register 2>/dev/null | grep -q '"token"' && success "Test user created" || echo "Note: Test user creation attempted"
-
-# ── 11. Print URLs ──────────────────────────────────────────────────────────────
+# ── 10. Print URLs and next steps ───────────────────────────────────────────────
 echo ""
 echo "========================================"
 echo "   Test Deployment Complete!"
 echo "========================================"
 echo ""
-echo "  Traefik dashboard : http://$PUBLIC_IP:8080"
-echo "  Auth service      : https://auth.$PUBLIC_IP.nip.io"
-echo "  AI Shim           : https://aishim.$PUBLIC_IP.nip.io"
-echo "  Finance Tracker   : https://finance.$PUBLIC_IP.nip.io"
+echo "  Services running at:"
+echo "    Traefik dashboard : http://$PUBLIC_IP:8080"
+echo "    Auth service      : https://auth.$PUBLIC_IP.nip.io"
+echo "    AI Shim           : https://aishim.$PUBLIC_IP.nip.io"
+echo "    Finance Tracker   : https://finance.$PUBLIC_IP.nip.io"
 echo ""
-echo "  Test credentials:"
-echo "    Email: test@example.com"
-echo "    Password: TestPassword123!"
+echo "  Next steps:"
+echo "    1. Create a user via auth-service registration:"
+echo "       curl -sk -X POST https://auth.\$IP.nip.io/auth/register \\"
+echo "         -H 'Content-Type: application/json' \\"
+echo "         -d '{\"email\":\"user@example.com\",\"password\":\"Password123!\",\"name\":\"Your Name\"}'"
 echo ""
-echo "  Note: Using self-signed TLS certificate (browser will warn)"
-echo "  Verify containers: docker ps"
+echo "    2. Login to Finance Tracker and test"
+echo ""
+echo "  Security notes:"
+echo "    - Self-signed TLS certificate (browser will warn)"
+echo "    - Verify containers: docker ps"
+echo "    - View logs: docker logs <container-name>"
 echo ""
