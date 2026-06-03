@@ -13,3 +13,7 @@ http:
         stsSeconds: 31536000
         stsIncludeSubdomains: true
         permissionsPolicy: "camera=(), microphone=(), geolocation=()"
+    ratelimit:
+      rateLimit:
+        average: 100
+        burst: 50
