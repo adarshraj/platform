@@ -151,15 +151,20 @@ clone_or_pull() {
   success "$name ready"
 }
 
-clone_or_pull auth-service  adarshraj/auth-service
-clone_or_pull ai-shim       adarshraj/ai-shim
-clone_or_pull finance-tracker adarshraj/finance-tracker
+clone_or_pull auth-service     adarshraj/auth-service
+clone_or_pull ai-shim          adarshraj/ai-shim
+clone_or_pull doc-bucket       adarshraj/DocBucket
+clone_or_pull paddle-ocr-wrap  adarshraj/paddle-ocr-wrap
+clone_or_pull email-service    adarshraj/email-service
+clone_or_pull finance-tracker  adarshraj/finance-tracker
 
 # ── 7. Generate .env files ────────────────────────────────────────────────────
 info "Generating .env files..."
-bash "$PLATFORM_DIR/scripts/gen-env.sh" auth-service   "$PUBLIC_IP"
-bash "$PLATFORM_DIR/scripts/gen-env.sh" ai-shim        "$PUBLIC_IP"
-bash "$PLATFORM_DIR/scripts/gen-env.sh" finance-tracker "$PUBLIC_IP"
+bash "$PLATFORM_DIR/scripts/gen-env.sh" auth-service     "$PUBLIC_IP"
+bash "$PLATFORM_DIR/scripts/gen-env.sh" ai-shim          "$PUBLIC_IP"
+bash "$PLATFORM_DIR/scripts/gen-env.sh" doc-bucket       "$PUBLIC_IP"
+bash "$PLATFORM_DIR/scripts/gen-env.sh" email-service    "$PUBLIC_IP"
+bash "$PLATFORM_DIR/scripts/gen-env.sh" finance-tracker  "$PUBLIC_IP"
 success ".env files generated"
 
 # ── 8. Deploy apps in order ────────────────────────────────────────────────────
@@ -175,9 +180,11 @@ deploy() {
   success "$name deployed"
 }
 
-deploy auth-service   "$APPS_DIR/auth-service/docker-compose.prod.yml" "$APPS_DIR/auth-service"
-deploy ai-shim        "$APPS_DIR/ai-shim/docker-compose.yml"           "$APPS_DIR/ai-shim"
-deploy finance-tracker "$APPS_DIR/finance-tracker/docker-compose.yml"  "$APPS_DIR/finance-tracker"
+deploy auth-service     "$APPS_DIR/auth-service/docker-compose.prod.yml"  "$APPS_DIR/auth-service"
+deploy ai-shim          "$APPS_DIR/ai-shim/docker-compose.yml"          "$APPS_DIR/ai-shim"
+deploy doc-bucket       "$APPS_DIR/doc-bucket/docker-compose.yml"       "$APPS_DIR/doc-bucket"
+deploy email-service    "$APPS_DIR/email-service/docker-compose.yml"    "$APPS_DIR/email-service"
+deploy finance-tracker  "$APPS_DIR/finance-tracker/docker-compose.yml"  "$APPS_DIR/finance-tracker"
 
 # ── 9. Print URLs ──────────────────────────────────────────────────────────────
 echo ""
