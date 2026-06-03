@@ -188,11 +188,11 @@ register_app() {
 
   info "Registering app: $app_id..."
 
-  # Register app via the auth-service API
-  docker exec finance-tracker-db-1 wget --post-data="{\"id\":\"$app_id\",\"name\":\"$app_name\",\"requiresExplicitAccess\":false}" \
-    --header="Content-Type: application/json" \
-    --header="X-Admin-Key: $admin_key" \
-    -O - http://auth-service:8703/auth/apps 2>/dev/null | grep -q '"id"' && success "App $app_id registered" || echo "Warning: Could not verify app registration"
+  # Register app via the auth-service API (from auth-service container)
+  docker exec auth-service curl -s -X POST http://localhost:8703/auth/apps \
+    -H "Content-Type: application/json" \
+    -H "X-Admin-Key: $admin_key" \
+    -d "{\"id\":\"$app_id\",\"name\":\"$app_name\",\"requiresExplicitAccess\":false}" | grep -q '"id"' && success "App $app_id registered" || warn "Could not register app $app_id"
 }
 
 register_app "finance-tracker" "Finance Tracker"
