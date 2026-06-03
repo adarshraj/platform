@@ -214,7 +214,7 @@ apps:
     subdomain: finance.homelab.local
     ports:
       app: 3000
-    repo: adarshraj/finance-tracker
+    repo: adarshraj/FinanceTracker
     depends_on: [auth-service, ai-shim, docbucket, email-service]
     type: monolithic
 
