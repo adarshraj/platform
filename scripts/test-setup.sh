@@ -142,7 +142,7 @@ clone_or_pull() {
 
 clone_or_pull auth-service  adarshraj/auth-service
 clone_or_pull ai-shim       adarshraj/ai-wrap
-clone_or_pull finance-tracker adarshraj/FinanceTracker
+clone_or_pull finance-tracker adarshraj/finance-tracker
 
 # ── 7. Generate .env files ────────────────────────────────────────────────────
 info "Generating .env files..."
