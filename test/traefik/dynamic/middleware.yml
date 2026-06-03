@@ -10,7 +10,6 @@ http:
         forceSTSHeader: true
         frameDeny: true
         referrerPolicy: "strict-origin-when-cross-origin"
+        stsSeconds: 31536000
         stsIncludeSubdomains: true
-        stsMaxAge: 31536000
-        stsPreload: true
         permissionsPolicy: "camera=(), microphone=(), geolocation=()"
