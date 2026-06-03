@@ -25,6 +25,16 @@ fi
 
 APPS_DIR="${APPS_DIR:-$HOME/apps}"
 ENV_FILE="$APPS_DIR/$APP/.env"
+PLATFORM_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Read Redis password from platform redis .env if it exists
+REDIS_ENV="$PLATFORM_DIR/infra/redis/.env"
+if [ -f "$REDIS_ENV" ]; then
+  REDIS_PASSWORD=$(grep "^REDIS_PASSWORD=" "$REDIS_ENV" | cut -d= -f2)
+else
+  REDIS_PASSWORD=""
+fi
+REDIS_URL="redis://${REDIS_PASSWORD:+:$REDIS_PASSWORD@}redis:6379"
 
 if [ ! -d "$APPS_DIR/$APP" ]; then
   echo "ERROR: $APPS_DIR/$APP not found. Clone it first:"
@@ -66,7 +76,7 @@ AI_SHIM_ALLOWED_ORIGIN=http://finance.$IP.nip.io
 AI_SHIM_RATE_LIMIT_RPM=30
 AI_SHIM_RATE_LIMIT_RPD=1000
 AI_SHIM_MAX_UPLOAD_BYTES=20971520
-REDIS_URL=redis://redis:6379
+REDIS_URL=$REDIS_URL
 OPENAI_API_KEY=DISABLED
 GEMINI_API_KEY=DISABLED
 ANTHROPIC_API_KEY=DISABLED
@@ -95,7 +105,7 @@ EMAIL_ALLOWED_ORIGIN=http://finance.$IP.nip.io
 EMAIL_PROVIDER=resend
 RESEND_API_KEY=re_test_placeholder
 EMAIL_DEFAULT_FROM=noreply@example.com
-REDIS_URL=redis://redis:6379
+REDIS_URL=$REDIS_URL
 OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
 EOF
     ;;

@@ -109,7 +109,19 @@ info "Creating Docker networks..."
 bash "$PLATFORM_DIR/infra/networks/create-networks.sh" 2>/dev/null || true
 success "Networks ready"
 
-# ── 4. Start test Traefik ──────────────────────────────────────────────────────
+# ── 4. Start Redis ────────────────────────────────────────────────────────────
+REDIS_ENV="$PLATFORM_DIR/infra/redis/.env"
+if [ ! -f "$REDIS_ENV" ]; then
+  info "Generating Redis password..."
+  REDIS_PASS=$(openssl rand -hex 32)
+  echo "REDIS_PASSWORD=$REDIS_PASS" > "$REDIS_ENV"
+  success "Redis password saved to $REDIS_ENV"
+fi
+info "Starting Redis..."
+docker compose -f "$PLATFORM_DIR/infra/redis/docker-compose.yml" --env-file "$REDIS_ENV" up -d
+success "Redis running"
+
+# ── 5. Start test Traefik ──────────────────────────────────────────────────────
 info "Starting test Traefik..."
 cd "$PLATFORM_DIR/test/traefik"
 docker compose up -d
