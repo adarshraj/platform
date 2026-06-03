@@ -151,45 +151,22 @@ bash "$PLATFORM_DIR/scripts/gen-env.sh" ai-shim        "$PUBLIC_IP"
 bash "$PLATFORM_DIR/scripts/gen-env.sh" finance-tracker "$PUBLIC_IP"
 success ".env files generated"
 
-# ── 8. Build and deploy apps in order ─────────────────────────────────────────
-# Images are built locally since GHCR CI hasn't run yet on first deploy.
-# On subsequent deploys after CI is set up, images are pulled from GHCR.
-
-build_local() {
-  local name=$1
-  local app_dir=$2
-  local dockerfile=$3
-  local image="ghcr.io/adarshraj/$name:latest"
-  info "Building $name image locally (this may take a few minutes)..."
-  docker build -f "$app_dir/$dockerfile" -t "$image" "$app_dir"
-  success "$name image built"
-}
+# ── 8. Deploy apps in order ────────────────────────────────────────────────────
+# Images are pulled from GHCR (built by GitHub Actions CI).
 
 deploy() {
   local name=$1
   local compose=$2
   local app_dir=$3
-  info "Starting $name..."
+  info "Deploying $name..."
+  docker compose -f "$compose" --env-file "$app_dir/.env" pull
   docker compose -f "$compose" --env-file "$app_dir/.env" up -d
   success "$name deployed"
 }
 
-# auth-service — Quarkus/Kotlin multi-stage build
-build_local auth-service "$APPS_DIR/auth-service" "src/main/docker/Dockerfile.jvm"
-deploy      auth-service "$APPS_DIR/auth-service/docker-compose.prod.yml" "$APPS_DIR/auth-service"
-
-# ai-shim — Quarkus/Kotlin multi-stage build
-build_local ai-shim "$APPS_DIR/ai-shim" "src/main/docker/Dockerfile.jvm"
-deploy      ai-shim "$APPS_DIR/ai-shim/docker-compose.yml" "$APPS_DIR/ai-shim"
-
-# finance-tracker — Node.js build (faster), build is in compose file
-info "Building finance-tracker image locally..."
-docker compose -f "$APPS_DIR/finance-tracker/docker-compose.yml" \
-  --env-file "$APPS_DIR/finance-tracker/.env" build
-info "Starting finance-tracker..."
-docker compose -f "$APPS_DIR/finance-tracker/docker-compose.yml" \
-  --env-file "$APPS_DIR/finance-tracker/.env" up -d
-success "finance-tracker deployed"
+deploy auth-service   "$APPS_DIR/auth-service/docker-compose.prod.yml" "$APPS_DIR/auth-service"
+deploy ai-shim        "$APPS_DIR/ai-shim/docker-compose.yml"           "$APPS_DIR/ai-shim"
+deploy finance-tracker "$APPS_DIR/finance-tracker/docker-compose.yml"  "$APPS_DIR/finance-tracker"
 
 # ── 9. Print URLs ──────────────────────────────────────────────────────────────
 echo ""
