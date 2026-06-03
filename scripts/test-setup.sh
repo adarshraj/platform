@@ -200,16 +200,41 @@ register_app "finance-tracker" "Finance Tracker"
 deploy ai-shim          "$APPS_DIR/ai-shim/docker-compose.yml"          "$APPS_DIR/ai-shim"
 deploy finance-tracker  "$APPS_DIR/finance-tracker/docker-compose.yml"  "$APPS_DIR/finance-tracker"
 
-# ── 9. Print URLs ──────────────────────────────────────────────────────────────
+# ── 9. Wait for services to be healthy ──────────────────────────────────────────
+info "Waiting for all services to be healthy..."
+for i in {1..30}; do
+  healthy=$(docker ps --format "{{.Names}}\t{{.Status}}" | grep -c "healthy")
+  if [ "$healthy" -ge 3 ]; then
+    success "All services healthy"
+    break
+  fi
+  if [ $i -eq 30 ]; then
+    echo "Warning: Not all services are healthy. Check with: docker ps"
+  fi
+  sleep 2
+done
+
+# ── 10. Create test user ────────────────────────────────────────────────────────
+info "Creating test user..."
+docker exec finance-tracker-app-1 wget --post-data='{"email":"test@example.com","password":"TestPassword123!","name":"Test User"}' \
+  --header="Content-Type: application/json" \
+  -O - http://auth-service:8703/auth/register 2>/dev/null | grep -q '"token"' && success "Test user created" || echo "Note: Test user creation attempted"
+
+# ── 11. Print URLs ──────────────────────────────────────────────────────────────
 echo ""
 echo "========================================"
 echo "   Test Deployment Complete!"
 echo "========================================"
 echo ""
 echo "  Traefik dashboard : http://$PUBLIC_IP:8080"
-echo "  Auth service      : http://auth.$PUBLIC_IP.nip.io"
-echo "  AI Shim           : http://aishim.$PUBLIC_IP.nip.io"
-echo "  Finance Tracker   : http://finance.$PUBLIC_IP.nip.io"
+echo "  Auth service      : https://auth.$PUBLIC_IP.nip.io"
+echo "  AI Shim           : https://aishim.$PUBLIC_IP.nip.io"
+echo "  Finance Tracker   : https://finance.$PUBLIC_IP.nip.io"
 echo ""
+echo "  Test credentials:"
+echo "    Email: test@example.com"
+echo "    Password: TestPassword123!"
+echo ""
+echo "  Note: Using self-signed TLS certificate (browser will warn)"
 echo "  Verify containers: docker ps"
 echo ""
