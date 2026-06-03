@@ -154,7 +154,6 @@ clone_or_pull() {
 clone_or_pull auth-service     adarshraj/auth-service
 clone_or_pull ai-shim          adarshraj/ai-shim
 clone_or_pull doc-bucket       adarshraj/DocBucket
-clone_or_pull paddle-ocr-wrap  adarshraj/paddle-ocr-wrap
 clone_or_pull email-service    adarshraj/email-service
 clone_or_pull finance-tracker  adarshraj/finance-tracker
 
