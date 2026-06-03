@@ -113,9 +113,8 @@ success "Networks ready"
 REDIS_ENV="$PLATFORM_DIR/infra/redis/.env"
 if [ ! -f "$REDIS_ENV" ]; then
   info "Generating Redis password..."
-  REDIS_PASS=$(openssl rand -hex 32)
-  echo "REDIS_PASSWORD=$REDIS_PASS" > "$REDIS_ENV"
-  success "Redis password saved to $REDIS_ENV"
+  echo "REDIS_PASSWORD=$(openssl rand -hex 32)" > "$REDIS_ENV"
+  success "Redis password generated and saved"
 fi
 info "Starting Redis..."
 docker compose -f "$PLATFORM_DIR/infra/redis/docker-compose.yml" --env-file "$REDIS_ENV" up -d
