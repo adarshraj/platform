@@ -3,6 +3,13 @@ services:
     image: redis:7-alpine
     container_name: redis
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETUID
+      - SETGID
     mem_limit: 256m
     cpus: 0.5
     command: >
