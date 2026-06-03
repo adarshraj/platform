@@ -176,6 +176,27 @@ deploy() {
 }
 
 deploy auth-service     "$APPS_DIR/auth-service/docker-compose.prod.yml"  "$APPS_DIR/auth-service"
+
+# ── 8b. Register apps with auth-service ────────────────────────────────────────
+info "Waiting for auth-service to be ready..."
+sleep 5
+
+register_app() {
+  local app_id=$1
+  local app_name=$2
+  local admin_key=$(grep AUTH_ADMIN_KEY "$APPS_DIR/auth-service/.env" | cut -d= -f2)
+
+  info "Registering app: $app_id..."
+
+  # Register app via the auth-service API
+  docker exec finance-tracker-db-1 wget --post-data="{\"id\":\"$app_id\",\"name\":\"$app_name\",\"requiresExplicitAccess\":false}" \
+    --header="Content-Type: application/json" \
+    --header="X-Admin-Key: $admin_key" \
+    -O - http://auth-service:8703/auth/apps 2>/dev/null | grep -q '"id"' && success "App $app_id registered" || echo "Warning: Could not verify app registration"
+}
+
+register_app "finance-tracker" "Finance Tracker"
+
 deploy ai-shim          "$APPS_DIR/ai-shim/docker-compose.yml"          "$APPS_DIR/ai-shim"
 deploy finance-tracker  "$APPS_DIR/finance-tracker/docker-compose.yml"  "$APPS_DIR/finance-tracker"
 
