@@ -111,14 +111,16 @@ EOF
     ;;
 
   finance-tracker)
+    POSTGRES_PASSWORD=$(s)
     cat > "$ENV_FILE" << EOF
 FINANCE_HOST=finance.$IP.nip.io
 PUBLIC_BASE_URL=http://finance.$IP.nip.io
 AUTH_SERVICE_URL=http://auth-service:8703
 AUTH_APP_ID=finance-tracker
 POSTGRES_USER=finuser
-POSTGRES_PASSWORD=$(s)
+POSTGRES_PASSWORD=$POSTGRES_PASSWORD
 POSTGRES_DB=finance_tracker
+DATABASE_URL=postgresql://finuser:$POSTGRES_PASSWORD@db:5432/finance_tracker
 CRON_SECRET=$(s)
 EOF
     ;;
