@@ -112,16 +112,28 @@ EOF
 
   finance-tracker)
     POSTGRES_PASSWORD=$(s)
+    # Read AUTH_ADMIN_KEY from auth-service .env so finance-tracker can call auth-service admin endpoints
+    AUTH_ADMIN_KEY_VAL=""
+    AUTH_SERVICE_ENV="$APPS_DIR/auth-service/.env"
+    if [ -f "$AUTH_SERVICE_ENV" ]; then
+      AUTH_ADMIN_KEY_VAL=$(grep "^AUTH_ADMIN_KEY=" "$AUTH_SERVICE_ENV" | cut -d= -f2)
+    fi
     cat > "$ENV_FILE" << EOF
 FINANCE_HOST=finance.$IP.nip.io
-PUBLIC_BASE_URL=http://finance.$IP.nip.io
+PUBLIC_BASE_URL=https://finance.$IP.nip.io
 AUTH_SERVICE_URL=http://auth-service:8703
+AUTH_JWT_ISSUER=http://auth.$IP.nip.io
 AUTH_APP_ID=finance-tracker
+AUTH_ADMIN_KEY=$AUTH_ADMIN_KEY_VAL
 POSTGRES_USER=finuser
 POSTGRES_PASSWORD=$POSTGRES_PASSWORD
 POSTGRES_DB=finance_tracker
 DATABASE_URL=postgresql://finuser:$POSTGRES_PASSWORD@db:5432/finance_tracker
 CRON_SECRET=$(s)
+
+# Email verification — Resend test mode only sends to the account owner email
+RESEND_API_KEY=
+EMAIL_FROM=onboarding@resend.dev
 EOF
     ;;
 

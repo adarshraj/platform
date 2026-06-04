@@ -184,18 +184,22 @@ sleep 5
 register_app() {
   local app_id=$1
   local app_name=$2
-  local admin_key=$(grep AUTH_ADMIN_KEY "$APPS_DIR/auth-service/.env" | cut -d= -f2)
+  local redirect_uri=$3
+  local admin_key
+  admin_key=$(grep "^AUTH_ADMIN_KEY=" "$APPS_DIR/auth-service/.env" | cut -d= -f2)
 
   info "Registering app: $app_id..."
 
-  # Register app via the auth-service API (from auth-service container)
-  docker exec auth-service curl -s -X POST http://localhost:8703/auth/apps \
+  local result
+  result=$(docker exec auth-service curl -s -X POST http://localhost:8703/auth/apps \
     -H "Content-Type: application/json" \
     -H "X-Admin-Key: $admin_key" \
-    -d "{\"id\":\"$app_id\",\"name\":\"$app_name\",\"requiresExplicitAccess\":false}" | grep -q '"id"' && success "App $app_id registered" || warn "Could not register app $app_id"
+    -d "{\"id\":\"$app_id\",\"name\":\"$app_name\",\"requiresExplicitAccess\":false,\"redirectUris\":[\"$redirect_uri\"]}")
+
+  echo "$result" | grep -q '"id"' && success "App $app_id registered" || warn "Could not register app $app_id: $result"
 }
 
-register_app "finance-tracker" "Finance Tracker"
+register_app "finance-tracker" "Finance Tracker" "https://finance.$PUBLIC_IP.nip.io"
 
 deploy ai-shim          "$APPS_DIR/ai-shim/docker-compose.yml"          "$APPS_DIR/ai-shim"
 deploy finance-tracker  "$APPS_DIR/finance-tracker/docker-compose.yml"  "$APPS_DIR/finance-tracker"
@@ -221,18 +225,16 @@ echo "   Test Deployment Complete!"
 echo "========================================"
 echo ""
 echo "  Services running at:"
-echo "    Traefik dashboard : http://$PUBLIC_IP:8080"
 echo "    Auth service      : https://auth.$PUBLIC_IP.nip.io"
 echo "    AI Shim           : https://aishim.$PUBLIC_IP.nip.io"
 echo "    Finance Tracker   : https://finance.$PUBLIC_IP.nip.io"
 echo ""
 echo "  Next steps:"
-echo "    1. Create a user via auth-service registration:"
-echo "       curl -sk -X POST https://auth.\$IP.nip.io/auth/register \\"
-echo "         -H 'Content-Type: application/json' \\"
-echo "         -d '{\"email\":\"user@example.com\",\"password\":\"Password123!\",\"name\":\"Your Name\"}'"
+echo "    1. Add your RESEND_API_KEY to $APPS_DIR/finance-tracker/.env, then restart:"
+echo "       docker compose -f $APPS_DIR/finance-tracker/docker-compose.yml up -d --no-deps app"
 echo ""
-echo "    2. Login to Finance Tracker and test"
+echo "    2. Register at https://finance.$PUBLIC_IP.nip.io/register"
+echo "       Verify your email, then sign in"
 echo ""
 echo "  Security notes:"
 echo "    - Self-signed TLS certificate (browser will warn)"
