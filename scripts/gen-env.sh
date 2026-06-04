@@ -101,10 +101,11 @@ EOF
     cat > "$ENV_FILE" << EOF
 EMAIL_SERVICE_HOST=mail.$IP.nip.io
 AUTH_SERVICE_URL=http://auth-service:8703
-EMAIL_ALLOWED_ORIGIN=http://finance.$IP.nip.io
+EMAIL_ALLOWED_ORIGIN=https://finance.$IP.nip.io
 EMAIL_PROVIDER=resend
-RESEND_API_KEY=re_test_placeholder
-EMAIL_DEFAULT_FROM=noreply@example.com
+RESEND_API_KEY=
+EMAIL_DEFAULT_FROM=onboarding@resend.dev
+EMAIL_RATELIMIT_BACKEND=redis
 REDIS_URL=$REDIS_URL
 OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
 EOF
