@@ -80,6 +80,7 @@ cd "$PLATFORM_DIR/infra/secrets" && docker compose --env-file .env up -d
 echo "  ✓ Infisical"
 
 echo "Starting logging (Loki + Promtail)..."
+docker network create monitoring_internal 2>/dev/null || true
 cd "$PLATFORM_DIR/infra/logging" && docker compose up -d
 echo "  ✓ Loki + Promtail"
 
