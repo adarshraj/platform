@@ -134,6 +134,12 @@ CRON_SECRET=$(s)
 # Email verification — Resend test mode only sends to the account owner email
 RESEND_API_KEY=
 EMAIL_FROM=onboarding@resend.dev
+
+# Doc-bucket (set after registering finance-tracker client via doc-bucket admin API)
+DOC_BUCKET_URL=http://doc-bucket:8702
+DOC_BUCKET_API_KEY=
+DOC_BUCKET_TENANT_ID=finance-tracker
+DOC_BUCKET_APP_ID=prod
 EOF
     ;;
 
