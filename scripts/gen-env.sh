@@ -111,6 +111,12 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
 EOF
     ;;
 
+  attentiongames)
+    cat > "$ENV_FILE" << EOF
+ATTENTIONGAMES_HOST=kidlearn.$IP.nip.io
+EOF
+    ;;
+
   finance-tracker)
     POSTGRES_PASSWORD=$(s)
     # Read AUTH_ADMIN_KEY from auth-service .env so finance-tracker can call auth-service admin endpoints

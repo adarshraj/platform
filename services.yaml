@@ -210,6 +210,14 @@ apps:
     depends_on: []
     type: frontend-only
 
+  - name: attentiongames
+    subdomain: kidlearn.homelab.local
+    ports:
+      app: 80
+    repo: adarshraj/attentiongames
+    depends_on: []
+    type: frontend-only
+
   - name: finance-tracker
     subdomain: finance.homelab.local
     ports:
