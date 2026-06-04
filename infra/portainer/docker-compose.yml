@@ -20,12 +20,8 @@ services:
       - "traefik.http.routers.portainer.entrypoints=websecure"
       - "traefik.http.routers.portainer.tls=true"
       - "traefik.http.services.portainer.loadbalancer.server.port=9000"
-      - "traefik.http.routers.portainer.middlewares=admin-auth@file"
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9000/api/system/status"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
+      - "traefik.http.routers.portainer.middlewares=secure-headers@file"
+      - "traefik.http.routers.portainer.service=portainer"
 
 volumes:
   portainer_data:
