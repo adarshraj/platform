@@ -125,6 +125,7 @@ PUBLIC_BASE_URL=https://finance.$IP.nip.io
 AUTH_SERVICE_URL=http://auth-service:8703
 AUTH_JWT_ISSUER=http://auth.$IP.nip.io
 AI_SHIM_URL=http://ai-shim:8090
+PADDLE_OCR_URL=http://paddle-ocr-wrap:8091
 AUTH_APP_ID=finance-tracker
 AUTH_ADMIN_KEY=$AUTH_ADMIN_KEY_VAL
 POSTGRES_USER=finuser
