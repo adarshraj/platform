@@ -36,6 +36,25 @@ echo "Starting Docker socket proxy..."
 cd "$PLATFORM_DIR/infra/docker-proxy" && docker compose up -d
 echo "  ✓ Docker socket proxy"
 
+echo "Starting Redis..."
+REDIS_ENV="$PLATFORM_DIR/infra/redis/.env"
+if [ ! -f "$REDIS_ENV" ]; then
+  echo "REDIS_PASSWORD=$(openssl rand -hex 32)" > "$REDIS_ENV"
+  echo "  ✓ Redis password generated"
+fi
+cd "$PLATFORM_DIR/infra/redis" && docker compose --env-file "$REDIS_ENV" up -d
+echo "  ✓ Redis"
+
+echo "Starting Garage (S3 object store)..."
+GARAGE_ENV="$PLATFORM_DIR/infra/garage/.env"
+if [ ! -f "$GARAGE_ENV" ]; then
+  echo "  ERROR: infra/garage/.env not found."
+  echo "  Run: bash $PLATFORM_DIR/scripts/setup-garage.sh"
+  exit 1
+fi
+cd "$PLATFORM_DIR/infra/garage" && docker compose up -d
+echo "  ✓ Garage"
+
 echo "Starting Traefik + CrowdSec..."
 if [ ! -f "$PLATFORM_DIR/infra/traefik/.env" ]; then
   echo "  WARNING: infra/traefik/.env not found — CrowdSec bouncer won't authenticate."
@@ -120,7 +139,19 @@ echo "  https://status.homelab.local      → Uptime Kuma"
 echo "  https://analytics.homelab.local   → Umami"
 echo ""
 echo "Next steps:"
-echo "  1. Configure DNS: point *.homelab.local to this server's IP"
-echo "  2. Set up TLS cert: see docs/local-dev.md"
-echo "  3. Migrate app secrets to Infisical"
-echo "  4. Deploy your first app: ./scripts/deploy-app.sh <app-name> production"
+echo "  1. Configure DNS: point *.yourdomain.com to this server's IP"
+echo "  2. Initialize Garage S3 store:"
+echo "       bash $PLATFORM_DIR/scripts/setup-garage.sh"
+echo "  3. Deploy services in order:"
+echo "       bash $PLATFORM_DIR/scripts/deploy-app.sh auth-service production"
+echo "       bash $PLATFORM_DIR/scripts/setup-apps.sh register-finance-tracker"
+echo "       bash $PLATFORM_DIR/scripts/deploy-app.sh ai-shim production"
+echo "       bash $PLATFORM_DIR/scripts/deploy-app.sh doc-bucket production"
+echo "       bash $PLATFORM_DIR/scripts/setup-apps.sh setup-doc-bucket"
+echo "       bash $PLATFORM_DIR/scripts/deploy-app.sh email-service production"
+echo "       bash $PLATFORM_DIR/scripts/deploy-app.sh paddle-ocr-wrap production"
+echo "       bash $PLATFORM_DIR/scripts/deploy-app.sh finance-tracker production"
+echo "       bash $PLATFORM_DIR/scripts/setup-apps.sh verify-finance-tracker"
+echo "  4. Add API keys (via Infisical or .env):"
+echo "       GEMINI_API_KEY  → ai-shim"
+echo "       RESEND_API_KEY  → finance-tracker, email-service"
