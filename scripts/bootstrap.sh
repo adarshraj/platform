@@ -84,14 +84,14 @@ docker network create monitoring_internal 2>/dev/null || true
 cd "$PLATFORM_DIR/infra/logging" && docker compose up -d
 echo "  ✓ Loki + Promtail"
 
-echo "Starting monitoring (Prometheus + Grafana + cAdvisor + node-exporter)..."
+echo "Starting Grafana..."
 if [ ! -f "$PLATFORM_DIR/infra/monitoring/.env" ]; then
   echo "  ERROR: infra/monitoring/.env not found."
-  echo "  Copy infra/monitoring/.env.example to infra/monitoring/.env and fill in the values."
+  echo "  Create it with: GRAFANA_HOST, GRAFANA_ADMIN_USER, GRAFANA_ADMIN_PASSWORD"
   exit 1
 fi
-cd "$PLATFORM_DIR/infra/monitoring" && docker compose --env-file .env up -d
-echo "  ✓ Prometheus + Grafana + cAdvisor + node-exporter"
+cd "$PLATFORM_DIR/infra/monitoring" && docker compose -f grafana-compose.yml --env-file .env up -d
+echo "  ✓ Grafana"
 
 echo "Starting Verdaccio (npm registry)..."
 cd "$PLATFORM_DIR/infra/registry" && docker compose up -d
