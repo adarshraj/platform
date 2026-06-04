@@ -6,7 +6,7 @@ services:
     ports:
       - "80:80"
       - "443:443"
-      - "8080:8080"
+      # Dashboard on 8080 removed — use admin API for management, not public exposure
     volumes:
       - ./traefik.yml:/etc/traefik/traefik.yml:ro
       - ./dynamic:/etc/traefik/dynamic:ro

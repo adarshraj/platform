@@ -1,6 +1,6 @@
 api:
-  dashboard: true
-  insecure: true
+  dashboard: false  # Disabled for security — not exposed publicly
+  insecure: false
 
 entryPoints:
   web:
