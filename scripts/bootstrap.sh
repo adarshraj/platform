@@ -98,7 +98,10 @@ cd "$PLATFORM_DIR/infra/registry" && docker compose up -d
 echo "  ✓ Verdaccio"
 
 echo "Starting Uptime Kuma (status page)..."
-cd "$PLATFORM_DIR/infra/uptime-kuma" && docker compose up -d
+if [ ! -f "$PLATFORM_DIR/infra/uptime-kuma/.env" ]; then
+  echo "UPTIME_KUMA_HOST=status.$(curl -s ifconfig.me).nip.io" > "$PLATFORM_DIR/infra/uptime-kuma/.env"
+fi
+cd "$PLATFORM_DIR/infra/uptime-kuma" && docker compose --env-file .env up -d
 echo "  ✓ Uptime Kuma"
 
 echo "Starting Umami (web analytics)..."
