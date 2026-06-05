@@ -139,6 +139,8 @@ EOF
   attentiongames)
     cat > "$ENV_FILE" << EOF
 ATTENTIONGAMES_HOST=kidlearn.$IP.nip.io
+UMAMI_URL=https://analytics.$IP.nip.io
+UMAMI_WEBSITE_ID=
 EOF
     ;;
 
