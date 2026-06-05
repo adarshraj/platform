@@ -42,6 +42,9 @@ else
   warn "Setup response: $SETUP_RESULT"
 fi
 
+# ── Connect uptime-kuma to monitoring_internal so it can reach Loki ──────────
+docker network connect monitoring_internal uptime-kuma 2>/dev/null || true
+
 # ── 2. Insert monitors directly into SQLite ───────────────────────────────────
 info "Adding monitors to database..."
 
@@ -69,22 +72,22 @@ add_monitor() {
   success "Added monitor: $name → $url"
 }
 
-# Core services
-add_monitor "Finance Tracker"  "https://finance.$IP.nip.io"                        60
-add_monitor "Auth Service"     "https://auth.$IP.nip.io/q/health/live"              60
-add_monitor "AI Shim"          "https://aishim.$IP.nip.io/q/health/live"            60
-add_monitor "Doc Bucket"       "https://docbucket.$IP.nip.io/q/health/live"         60
-add_monitor "Email Service"    "https://mail.$IP.nip.io/q/health/live"              60
-add_monitor "Garage (S3)"      "https://s3.$IP.nip.io"                              60
+# Core services — use internal Docker hostnames (containers can't reach their own public IP)
+add_monitor "Finance Tracker"  "http://finance-tracker-app-1:3000/api/health"       60
+add_monitor "Auth Service"     "http://auth-service:8703/q/health/live"             60
+add_monitor "AI Shim"          "http://ai-shim:8090/q/health/live"                  60
+add_monitor "Doc Bucket"       "http://doc-bucket:8702/q/health/live"               60
+add_monitor "Email Service"    "http://email-service:8706/q/health/live"            60
+add_monitor "Garage (S3)"      "http://garage:3903/health"                          60
 
 # Platform infra
-add_monitor "Grafana"          "https://grafana.$IP.nip.io/api/health"              60
-add_monitor "Portainer"        "https://portainer.$IP.nip.io/api/system/status"     60
+add_monitor "Grafana"          "http://grafana:3000/api/health"                     60
+add_monitor "Portainer"        "http://portainer:9000/api/system/status"            60
 add_monitor "Loki"             "http://loki:3100/ready"                             60
 
 # Apps
-add_monitor "KidLearn"         "https://kidlearn.$IP.nip.io"                        60
-add_monitor "HomeUtils"        "https://homeutils.$IP.nip.io"                       60
+add_monitor "KidLearn"         "http://attentiongames:80/index.html"                60
+add_monitor "HomeUtils"        "http://homeutils:8730/"                             60
 
 # ── 3. Restart Uptime Kuma to pick up the new monitors ───────────────────────
 info "Restarting Uptime Kuma to load monitors..."
