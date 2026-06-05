@@ -111,6 +111,12 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
 EOF
     ;;
 
+  homeutils)
+    cat > "$ENV_FILE" << EOF
+HOMEUTILS_HOST=homeutils.$IP.nip.io
+EOF
+    ;;
+
   attentiongames)
     cat > "$ENV_FILE" << EOF
 ATTENTIONGAMES_HOST=kidlearn.$IP.nip.io
