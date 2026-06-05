@@ -111,6 +111,25 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
 EOF
     ;;
 
+  umami)
+    cat > "$ENV_FILE" << EOF
+UMAMI_HOST=analytics.$IP.nip.io
+UMAMI_DB_PASSWORD=$(s)
+UMAMI_APP_SECRET=$(s)
+EOF
+    ;;
+
+  infisical)
+    REDIS_PASSWORD=$(grep "^REDIS_PASSWORD=" "$PLATFORM_DIR/infra/redis/.env" 2>/dev/null | cut -d= -f2 || echo "")
+    cat > "$ENV_FILE" << EOF
+INFISICAL_HOST=secrets.$IP.nip.io
+INFISICAL_DB_PASSWORD=$(s)
+INFISICAL_ENCRYPTION_KEY=$(openssl rand -hex 16)
+INFISICAL_AUTH_SECRET=$(s)
+REDIS_PASSWORD=$REDIS_PASSWORD
+EOF
+    ;;
+
   homeutils)
     cat > "$ENV_FILE" << EOF
 HOMEUTILS_HOST=homeutils.$IP.nip.io

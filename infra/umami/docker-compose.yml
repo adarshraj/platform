@@ -26,13 +26,10 @@ services:
       - "traefik.http.routers.umami.entrypoints=websecure"
       - "traefik.http.routers.umami.tls=true"
       - "traefik.http.services.umami.loadbalancer.server.port=3000"
-      - "traefik.http.routers.umami.middlewares=ratelimit@docker,secure-headers@docker"
+      - "traefik.http.routers.umami.middlewares=secure-headers@file"
+      - "traefik.http.routers.umami.service=umami"
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/heartbeat"]
-      interval: 30s
-      timeout: 5s
-      start_period: 30s
-      retries: 3
+      disable: true
 
   umami-db:
     image: postgres:16-alpine

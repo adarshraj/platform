@@ -106,12 +106,31 @@ echo "  ✓ Uptime Kuma"
 
 echo "Starting Umami (web analytics)..."
 if [ ! -f "$PLATFORM_DIR/infra/umami/.env" ]; then
-  echo "  ERROR: infra/umami/.env not found."
-  echo "  Copy infra/umami/.env.example to infra/umami/.env and fill in the values."
-  exit 1
+  REDIS_ENV="$PLATFORM_DIR/infra/redis/.env"
+  cat > "$PLATFORM_DIR/infra/umami/.env" << UENV
+UMAMI_HOST=analytics.$(curl -s ifconfig.me).nip.io
+UMAMI_DB_PASSWORD=$(openssl rand -hex 16)
+UMAMI_APP_SECRET=$(openssl rand -hex 32)
+UENV
 fi
+docker network create umami-internal 2>/dev/null || true
 cd "$PLATFORM_DIR/infra/umami" && docker compose --env-file .env up -d
 echo "  ✓ Umami"
+
+echo "Starting Infisical (secrets management)..."
+if [ ! -f "$PLATFORM_DIR/infra/secrets/.env" ]; then
+  REDIS_PASSWORD=$(grep REDIS_PASSWORD "$PLATFORM_DIR/infra/redis/.env" | cut -d= -f2)
+  cat > "$PLATFORM_DIR/infra/secrets/.env" << IENV
+INFISICAL_HOST=secrets.$(curl -s ifconfig.me).nip.io
+INFISICAL_DB_PASSWORD=$(openssl rand -hex 16)
+INFISICAL_ENCRYPTION_KEY=$(openssl rand -hex 16)
+INFISICAL_AUTH_SECRET=$(openssl rand -hex 32)
+REDIS_PASSWORD=$REDIS_PASSWORD
+IENV
+fi
+docker network create infisical_internal 2>/dev/null || true
+cd "$PLATFORM_DIR/infra/secrets" && docker compose --env-file .env up -d
+echo "  ✓ Infisical"
 
 # 5. Set up daily backup cron
 CRON_JOB="0 2 * * * $PLATFORM_DIR/scripts/backup.sh >> /var/log/platform-backup.log 2>&1"
