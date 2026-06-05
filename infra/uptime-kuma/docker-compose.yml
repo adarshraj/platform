@@ -7,6 +7,10 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    cap_add:
+      - SETGID
+      - SETUID
+      - CHOWN
     mem_limit: 512m
     cpus: 0.5
     volumes:
@@ -20,7 +24,8 @@ services:
       - "traefik.http.routers.uptime-kuma.tls=true"
       - "traefik.http.services.uptime-kuma.loadbalancer.server.port=3001"
       # Public status page — no auth required. Admin login is built into Uptime Kuma.
-      - "traefik.http.routers.uptime-kuma.middlewares=secure-headers@docker"
+      - "traefik.http.routers.uptime-kuma.middlewares=secure-headers@file"
+      - "traefik.http.routers.uptime-kuma.service=uptime-kuma"
     healthcheck:
       test: ["CMD-SHELL", "node -e \"const http = require('http'); const options = { host: 'localhost', port: 3001, path: '/api/entry', timeout: 2000 }; const req = http.request(options, (res) => { process.exit(res.statusCode === 200 ? 0 : 1); }); req.on('error', () => process.exit(1)); req.end();\""]
       interval: 30s
