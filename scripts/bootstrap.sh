@@ -93,9 +93,10 @@ fi
 cd "$PLATFORM_DIR/infra/monitoring" && docker compose -f grafana-compose.yml --env-file .env up -d
 echo "  ✓ Grafana"
 
-echo "Starting Verdaccio (npm registry)..."
-cd "$PLATFORM_DIR/infra/registry" && docker compose up -d
-echo "  ✓ Verdaccio"
+# Verdaccio (npm registry) — disabled until shared npm packages are needed
+# echo "Starting Verdaccio (npm registry)..."
+# cd "$PLATFORM_DIR/infra/registry" && docker compose up -d
+# echo "  ✓ Verdaccio"
 
 echo "Starting Uptime Kuma (status page)..."
 if [ ! -f "$PLATFORM_DIR/infra/uptime-kuma/.env" ]; then
@@ -157,7 +158,7 @@ echo "  https://traefik.homelab.local     → Traefik dashboard"
 echo "  https://portainer.homelab.local   → Portainer"
 echo "  https://monitoring.homelab.local  → Grafana"
 echo "  https://secrets.homelab.local     → Infisical"
-echo "  https://npm.homelab.local         → Verdaccio"
+# echo "  https://npm.homelab.local         → Verdaccio (disabled)"
 echo "  https://status.homelab.local      → Uptime Kuma"
 echo "  https://analytics.homelab.local   → Umami"
 echo ""
