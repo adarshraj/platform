@@ -54,53 +54,34 @@ else
   success "Prerequisites already installed"
 fi
 
-# ── 2. GHCR token (read:packages — for pulling Docker images) ─────────────────
+# ── 2. GitHub PAT (read:packages + repo — pulls images and clones private repos)
+# Private GHCR packages require both read:packages AND repo scope on the same PAT.
+# So one token covers both image pulls and repo clones.
 TOKEN_FILE="$HOME/.config/platform/ghcr-token"
 mkdir -p "$HOME/.config/platform"
 
 if [ -f "$TOKEN_FILE" ] && [ -s "$TOKEN_FILE" ]; then
-  info "GHCR token already exists. Use existing? [Y/n]: "
+  info "GitHub token already exists. Use existing? [Y/n]: "
   read -r USE_EXISTING
   if [[ "$USE_EXISTING" =~ ^[Nn]$ ]]; then rm -f "$TOKEN_FILE"; fi
 fi
 
 if [ ! -f "$TOKEN_FILE" ] || [ ! -s "$TOKEN_FILE" ]; then
   echo ""
-  echo "  Enter your GitHub Classic PAT (read:packages scope)."
+  echo "  Enter your GitHub Classic PAT (read:packages + repo scopes)."
   echo "  Get one at: GitHub → Settings → Developer settings → Tokens (classic)"
   echo ""
   read -rsp "  Paste token (input hidden): " GHCR_TOKEN
   echo ""
   echo "$GHCR_TOKEN" > "$TOKEN_FILE"
   chmod 600 "$TOKEN_FILE"
-  success "GHCR token saved"
+  success "GitHub token saved"
 fi
 
 info "Authenticating with GHCR..."
 bash "$PLATFORM_DIR/scripts/ghcr-login.sh"
 
-# ── 2b. Clone token (repo scope — for cloning private repos) ──────────────────
-CLONE_TOKEN_FILE="$HOME/.config/platform/clone-token"
-
-if [ -f "$CLONE_TOKEN_FILE" ] && [ -s "$CLONE_TOKEN_FILE" ]; then
-  info "Clone token already exists. Use existing? [Y/n]: "
-  read -r USE_EXISTING_CLONE
-  if [[ "$USE_EXISTING_CLONE" =~ ^[Nn]$ ]]; then rm -f "$CLONE_TOKEN_FILE"; fi
-fi
-
-if [ ! -f "$CLONE_TOKEN_FILE" ] || [ ! -s "$CLONE_TOKEN_FILE" ]; then
-  echo ""
-  echo "  Enter your GitHub Classic PAT (repo scope — for cloning private repos)."
-  echo "  Can be the same token if it has both read:packages and repo scopes."
-  echo ""
-  read -rsp "  Paste token (input hidden): " CLONE_TOKEN
-  echo ""
-  echo "$CLONE_TOKEN" > "$CLONE_TOKEN_FILE"
-  chmod 600 "$CLONE_TOKEN_FILE"
-  success "Clone token saved"
-fi
-
-CLONE_TOKEN="$(cat "$CLONE_TOKEN_FILE")"
+CLONE_TOKEN="$(cat "$TOKEN_FILE")"
 
 # ── 3. Docker networks ────────────────────────────────────────────────────────
 info "Creating Docker networks..."

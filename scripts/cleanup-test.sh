@@ -101,8 +101,7 @@ for app in auth-service ai-shim doc-bucket email-service paddle-ocr-wrap finance
   rm -f "$APPS_DIR/$app/.env"
 done
 
-# Clone token (scoped to test; GHCR token is kept for production reuse)
-rm -f "$HOME/.config/platform/clone-token"
+# No separate clone token — the GHCR token (ghcr-token) covers both and is kept for production reuse
 
 success "Generated files removed"
 
