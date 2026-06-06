@@ -71,6 +71,7 @@ EOF
   ai-shim)
     cat > "$ENV_FILE" << EOF
 AUTH_SERVICE_URL=http://auth-service:8703
+MP_JWT_VERIFY_ISSUER=http://auth.$IP.nip.io
 AI_SHIM_HOST=aishim.$IP.nip.io
 AI_SHIM_ALLOWED_ORIGIN=https://finance.$IP.nip.io
 AI_SHIM_RATE_LIMIT_RPM=30
