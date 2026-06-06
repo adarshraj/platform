@@ -157,6 +157,7 @@ EOF
 FINANCE_HOST=finance.$IP.nip.io
 PUBLIC_BASE_URL=https://finance.$IP.nip.io
 BODY_SIZE_LIMIT=20971520
+GEMINI_API_KEY=
 AUTH_SERVICE_URL=http://auth-service:8703
 AUTH_JWT_ISSUER=http://auth.$IP.nip.io
 AI_SHIM_URL=http://ai-shim:8090
