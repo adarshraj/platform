@@ -51,6 +51,34 @@ for container in "${POSTGRES_CONTAINERS[@]}"; do
   fi
 done
 
+# --- SQLite volume backups ---
+# Services opt in by adding: labels: { com.platform.backup: sqlite, com.platform.backup.volume: <volume-name>, com.platform.backup.path: <db-path-inside-volume> }
+# Example: doc-bucket uses volume=doc-bucket-data, path=/app/data/docbucket.db
+echo "  Backing up SQLite volumes..."
+mapfile -t SQLITE_CONTAINERS < <(docker ps --filter "label=com.platform.backup=sqlite" --format "{{.Names}}" 2>/dev/null || true)
+for container in "${SQLITE_CONTAINERS[@]}"; do
+  [ -z "$container" ] && continue
+  volume=$(docker inspect "$container" --format '{{index .Config.Labels "com.platform.backup.volume"}}' 2>/dev/null || true)
+  db_path=$(docker inspect "$container" --format '{{index .Config.Labels "com.platform.backup.path"}}' 2>/dev/null || true)
+  if [ -z "$volume" ] || [ -z "$db_path" ]; then
+    echo "    ✗ $container — missing com.platform.backup.volume or com.platform.backup.path label"
+    BACKUP_FAILURES=$((BACKUP_FAILURES + 1))
+    continue
+  fi
+  echo "    Backing up SQLite: $container ($volume:$db_path)"
+  dest_file="${container}-sqlite.db.gz"
+  if docker run --rm \
+    -v "${volume}:/data:ro" \
+    "$ALPINE_IMAGE" sh -c "cat '${db_path}'" 2>/dev/null \
+    | gzip > "$BACKUP_PATH/${dest_file}"; then
+    echo "    ✓ $container"
+  else
+    echo "    ✗ Failed: $container"
+    rm -f "$BACKUP_PATH/${dest_file}"
+    BACKUP_FAILURES=$((BACKUP_FAILURES + 1))
+  fi
+done
+
 # --- Infisical volume backup ---
 echo "  Backing up Infisical volume..."
 if docker run --rm \

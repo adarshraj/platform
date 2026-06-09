@@ -110,16 +110,23 @@ chmod 600 ~/.config/platform/ghcr-token
 
 ### 3.3 Fill in required .env files
 
+**For a production domain** — copy and edit each manually:
 ```bash
 cp ~/platform/infra/traefik/.env.example    ~/platform/infra/traefik/.env
 cp ~/platform/infra/secrets/.env.example    ~/platform/infra/secrets/.env
 cp ~/platform/infra/monitoring/.env.example ~/platform/infra/monitoring/.env
 ```
 
-Edit each file. Key values:
+Key values:
 - `infra/traefik/.env` — `CROWDSEC_BOUNCER_API_KEY` (generated after first start, see below)
 - `infra/secrets/.env` — Infisical database credentials and encryption key
 - `infra/monitoring/.env` — Grafana admin password
+
+**For a test VPS without a domain** — use `gen-env.sh` to auto-generate `.env` files using `nip.io` hostnames:
+```bash
+~/platform/scripts/gen-env.sh
+# Prompts for VPS public IP, writes .env to each app and infra directory
+```
 
 ### 3.4 Configure DNS
 
@@ -163,10 +170,21 @@ This runs once and starts (in order):
 5. Portainer
 6. Infisical
 7. Loki + Promtail (logging)
-8. Prometheus + Grafana (monitoring)
-9. Verdaccio (npm registry)
-10. Uptime Kuma (status page)
-11. Schedules daily backup cron
+8. Prometheus + Grafana (monitoring — Grafana runs from `grafana-compose.yml`, separate from the Prometheus stack)
+9. Redis
+10. Garage (S3-compatible object store)
+11. Uptime Kuma (status page)
+12. Umami (web analytics)
+13. Schedules daily backup cron (2am) and backup verification (2:30am)
+
+> **Note:** Verdaccio (npm registry) is registered in `services.yaml` but intentionally skipped in bootstrap — there are no shared npm packages yet. Start it manually if needed: `cd ~/platform/infra/registry && docker compose up -d`
+
+### Post-bootstrap: finish Garage setup
+
+Run the Garage setup script to initialise the cluster and create buckets:
+```bash
+~/platform/scripts/setup-garage.sh
+```
 
 ### Post-bootstrap: finish CrowdSec setup
 
@@ -233,6 +251,14 @@ Shared services must be up before any app that depends on them. Deploy in this o
 
 > **Note:** auth-service uses `docker-compose.prod.yml` (not `docker-compose.yml`
 > which is a dev-only PostgreSQL helper). All other services use `docker-compose.yml`.
+
+### Register apps with auth-service
+
+After shared services are healthy, run `setup-apps.sh` to register each app's OAuth redirect URI with auth-service:
+
+```bash
+~/platform/scripts/setup-apps.sh
+```
 
 ### Verify shared services are healthy
 
@@ -486,14 +512,15 @@ Always deploy in this order — services must be available before apps that depe
 
 ```
 1. Platform infra (bootstrap.sh handles this)
-   traefik → portainer → infisical → loki → prometheus → verdaccio → uptime-kuma → umami
-   redis and garage are started as part of bootstrap too
+   traefik → portainer → infisical → loki → prometheus → grafana → redis → garage → uptime-kuma → umami
 
 2. Shared services (deploy manually in order)
    auth-service           (no dependencies)
    ai-shim                (no dependencies)
    email-service          (depends on: auth-service, redis)
    doc-bucket             (depends on: auth-service, garage)
+
+   Then run: setup-apps.sh   ← registers OAuth redirect URIs with auth-service
 
 3. Apps (any order after shared services are healthy)
    finance-tracker        (depends on: auth-service, ai-shim, docbucket, email-service)
@@ -505,6 +532,14 @@ Always deploy in this order — services must be available before apps that depe
    family-health-tracker  (no shared service dependencies)
    vuln-monitor           (no shared service dependencies)
    f1pulse                (no shared service dependencies)
+   attentiongames         (no shared service dependencies)
+   shortcut-commands      (no shared service dependencies)
+   upstarter              (no shared service dependencies)
+   launchtracker          (no shared service dependencies)
+   launchpad              (no shared service dependencies)
+   wishlister             (no shared service dependencies)
+   heicconvert            (no shared service dependencies)
+   difference             (no shared service dependencies)
 ```
 
 > **Tip:** `services.yaml` has a `depends_on` field for every app that lists

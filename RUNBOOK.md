@@ -63,11 +63,30 @@ Or via Portainer UI: Stacks → select stack → Pull and redeploy.
 ## Backup
 
 ```bash
-# Run manual backup (all PostgreSQL DBs + volumes)
+# Run manual backup (all PostgreSQL DBs + SQLite volumes)
 ./scripts/backup.sh
 
 # Backups are stored in /var/backups/platform/ and synced offsite via rclone.
 # Cron runs this automatically at 2am daily (set up by bootstrap.sh).
+```
+
+Backup covers:
+- **PostgreSQL** — all containers labelled `com.platform.backup=postgres` (all app DBs + Infisical)
+- **SQLite** — all containers labelled `com.platform.backup=sqlite` (doc-bucket; add auth-service prod compose when configured)
+- **Loki volume** — logs (Loki is briefly stopped during snapshot)
+
+To opt a new PostgreSQL container in, add to its compose service:
+```yaml
+labels:
+  com.platform.backup: postgres
+```
+
+To opt a SQLite container in, add:
+```yaml
+labels:
+  com.platform.backup: sqlite
+  com.platform.backup.volume: <volume-name>
+  com.platform.backup.path: /path/to/db.sqlite
 ```
 
 ---
@@ -215,6 +234,35 @@ cat /var/backups/platform/$(ls -1t /var/backups/platform/ | head -1)/checksums.s
 
 ---
 
+## Test Deployment (No Domain)
+
+For testing on a fresh VPS without a registered domain, use `nip.io` hostnames and a self-signed cert:
+
+```bash
+# Interactive setup — prompts for VPS IP and GHCR token, then deploys everything
+sudo bash ~/platform/scripts/test-setup.sh
+```
+
+This script:
+1. Generates `.env` files for all services using `<service>.<IP>.nip.io` hostnames (`gen-env.sh`)
+2. Deploys platform infra, shared services, and apps end-to-end
+3. Registers finance-tracker with auth-service
+4. Validates health of each service
+
+To generate `.env` files only (without deploying):
+```bash
+~/platform/scripts/gen-env.sh
+# Prompts for VPS public IP, writes .env to each app directory
+```
+
+To tear everything down after testing:
+```bash
+sudo bash ~/platform/scripts/cleanup-test.sh
+# Stops all stacks, removes containers, volumes, and networks
+```
+
+---
+
 ## Lint Platform Config
 
 Run before committing changes to infra, scripts, or services.yaml:
@@ -232,7 +280,7 @@ Requires: `sudo apt install yamllint shellcheck`
 
 ## SSO / ForwardAuth — Platform Login
 
-All admin UIs (Portainer, Grafana, Infisical, Verdaccio) are protected by SSO via your auth-service. Users must log in at `auth.homelab.local` before accessing any admin UI.
+All admin UIs (Portainer, Grafana, Infisical) are protected by SSO via your auth-service. Users must log in at `auth.homelab.local` before accessing any admin UI.
 
 ### How it works
 
@@ -284,6 +332,14 @@ Public status page at `https://status.homelab.local`. Shows service health for n
 
 ### First-time setup
 
+Run the automated setup script after bootstrap:
+```bash
+~/platform/scripts/setup-uptime-kuma.sh
+```
+
+This creates the admin account and inserts monitors for all platform services automatically.
+
+To set up manually instead:
 1. Visit `https://status.homelab.local`
 2. Create an admin account (this is Uptime Kuma's own login, separate from platform SSO)
 3. Add monitors for your services:
@@ -325,17 +381,17 @@ cd ~/platform/infra/traefik && docker compose down
 # Portainer
 cd ~/platform/infra/portainer && docker compose up -d
 
-# Monitoring (Prometheus + Grafana + cAdvisor)
+# Monitoring (Prometheus + cAdvisor + Alertmanager)
 cd ~/platform/infra/monitoring && docker compose up -d
+
+# Grafana (deployed separately from the rest of the monitoring stack)
+cd ~/platform/infra/monitoring && docker compose -f grafana-compose.yml up -d
 
 # Logging (Loki + Promtail)
 cd ~/platform/infra/logging && docker compose up -d
 
 # Secrets (Infisical)
 cd ~/platform/infra/secrets && docker compose up -d
-
-# npm Registry (Verdaccio)
-cd ~/platform/infra/registry && docker compose up -d
 
 # Uptime Kuma (status page)
 cd ~/platform/infra/uptime-kuma && docker compose up -d
@@ -416,8 +472,9 @@ INFISICAL_REDIS_PASSWORD=...   # openssl rand -base64 32
 | Portainer | https://portainer.homelab.local |
 | Grafana | https://monitoring.homelab.local |
 | Infisical | https://secrets.homelab.local |
-| Verdaccio (npm) | https://npm.homelab.local |
 | Uptime Kuma | https://status.homelab.local |
+| Umami (analytics) | https://analytics.homelab.local |
+| Garage (S3) | https://s3.homelab.local |
 
 ---
 
